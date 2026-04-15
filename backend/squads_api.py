@@ -3,8 +3,12 @@ import random
 import string
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from dotenv import load_dotenv
 from supabase import Client, create_client
+
+load_dotenv("../.env")
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -17,6 +21,14 @@ if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Allows all origins, including your local Expo web port
+    allow_credentials=True,
+    allow_methods=["*"], # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"], # Allows all headers
+)
 
 
 class CreateSquadRequest(BaseModel):

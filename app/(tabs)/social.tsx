@@ -3,54 +3,56 @@ import {
     ActivityIndicator,
     Alert,
     Modal,
+    Platform,
     Pressable,
     StyleSheet,
     Text,
     TextInput,
+    ToastAndroid,
     View,
 } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { createSquad, getUserSquads, joinSquad } from "@/lib/services/squadService";
-import { Squad } from "@/types/squads";
+import { Squad } from "@/lib/models/Squad";
 
 export default function Social() {
     const { user } = useAuth();
 
-    const [loading, setLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
+    const [errorMsg, setErrorMsg] = useState("");
     const [squad, setSquad] = useState<Squad | null>(null);
 
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showJoinModal, setShowJoinModal] = useState(false);
 
-    const [creating, setCreating] = useState(false);
-    const [joining, setJoining] = useState(false);
-
-    const [createName, setCreateName] = useState("");
-    const [createWeeklyGoal, setCreateWeeklyGoal] = useState("");
-    const [joinCode, setJoinCode] = useState("");
+    const [squadName, setSquadName] = useState("");
+    const [weeklyGoal, setWeeklyGoal] = useState("");
+    const [inviteCode, setInviteCode] = useState("");
 
     const canSubmitCreate = useMemo(() => {
-        return createName.trim().length > 0 && Number(createWeeklyGoal) > 0;
-    }, [createName, createWeeklyGoal]);
+        return squadName.trim().length > 0 && Number(weeklyGoal) > 0;
+    }, [squadName, weeklyGoal]);
 
     useEffect(() => {
         if (!user?.id) {
-            setLoading(false);
+            setIsLoading(false);
             return;
         }
-        loadSquad();
+        void loadSquad();
     }, [user?.id]);
 
     async function loadSquad() {
         if (!user?.id) return;
         try {
-            setLoading(true);
+            setErrorMsg("");
+            setIsLoading(true);
             const data = await getUserSquads(user.id);
-            setSquad(data.squads[0] ?? null);
+            const firstSquad = data.squads[0] ? new Squad(data.squads[0]) : null;
+            setSquad(firstSquad);
         } catch (error: any) {
-            Alert.alert("Could not load squad", error?.message || "Try again.");
+            setErrorMsg(error?.message || "Could not load squad. Try again.");
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     }
 
@@ -58,45 +60,60 @@ export default function Social() {
         if (!user?.id || !canSubmitCreate) return;
 
         try {
-            setCreating(true);
+            setErrorMsg("");
+            setIsLoading(true);
             await createSquad({
                 user_id: user.id,
-                squad_name: createName.trim(),
-                weekly_goal: Number(createWeeklyGoal),
+                squad_name: squadName.trim(),
+                weekly_goal: Number(weeklyGoal),
             });
 
             setShowCreateModal(false);
-            setCreateName("");
-            setCreateWeeklyGoal("");
+            setSquadName("");
+            setWeeklyGoal("");
             await loadSquad();
+            if (Platform.OS === "android") {
+                ToastAndroid.show("Success", ToastAndroid.SHORT);
+            } else {
+                Alert.alert("Success", "Squad created.");
+            }
         } catch (error: any) {
-            Alert.alert("Could not create squad", error?.message || "Try again.");
+            setErrorMsg(error?.message || "Could not create squad. Try again.");
         } finally {
-            setCreating(false);
+            setIsLoading(false);
         }
     }
 
     async function handleJoinSquad() {
-        if (!user?.id || !joinCode.trim()) return;
+        if (!user?.id || !inviteCode.trim()) return;
 
         try {
-            setJoining(true);
+            setErrorMsg("");
+            setIsLoading(true);
             await joinSquad({
                 user_id: user.id,
-                invite_code: joinCode.trim().toUpperCase(),
+                invite_code: inviteCode.trim().toUpperCase(),
             });
 
             setShowJoinModal(false);
-            setJoinCode("");
+            setInviteCode("");
             await loadSquad();
         } catch (error: any) {
-            Alert.alert("Could not join squad", error?.message || "Try again.");
+            setErrorMsg(error?.message || "Could not join squad. Try again.");
         } finally {
-            setJoining(false);
+            setIsLoading(false);
         }
     }
 
-    if (loading) {
+    function formatMemberDisplayName(userId: string): string {
+        if (user?.id && userId === user.id) {
+            return "You";
+        }
+        // Fallback when no profile name is available yet.
+        return `${userId.slice(0, 8)}...${userId.slice(-4)}`;
+    }
+
+    if (isLoading && !squad) {
         return (
             <View style={styles.centered}>
                 <ActivityIndicator />
@@ -112,21 +129,33 @@ export default function Social() {
                     Team up with friends to keep your streak alive.
                 </Text>
 
-                <Pressable style={styles.primaryButton} onPress={() => setShowCreateModal(true)}>
-                    <Text style={styles.primaryButtonText}>Create Squad</Text>
+                {!!errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
+
+                <Pressable
+                    style={[styles.primaryButton, isLoading && styles.disabled]}
+                    onPress={() => setShowCreateModal(true)}
+                    disabled={isLoading}
+                >
+                    <Text style={styles.primaryButtonText}>
+                        {isLoading ? "Loading..." : "Create Squad"}
+                    </Text>
                 </Pressable>
 
-                <Pressable style={styles.secondaryButton} onPress={() => setShowJoinModal(true)}>
+                <Pressable
+                    style={[styles.secondaryButton, isLoading && styles.disabled]}
+                    onPress={() => setShowJoinModal(true)}
+                    disabled={isLoading}
+                >
                     <Text style={styles.secondaryButtonText}>Join Squad</Text>
                 </Pressable>
 
                 <CreateSquadModal
                     visible={showCreateModal}
-                    loading={creating}
-                    squadName={createName}
-                    weeklyGoal={createWeeklyGoal}
-                    onChangeSquadName={setCreateName}
-                    onChangeWeeklyGoal={setCreateWeeklyGoal}
+                    loading={isLoading}
+                    squadName={squadName}
+                    weeklyGoal={weeklyGoal}
+                    onChangeSquadName={setSquadName}
+                    onChangeWeeklyGoal={setWeeklyGoal}
                     onClose={() => setShowCreateModal(false)}
                     onSubmit={handleCreateSquad}
                     canSubmit={canSubmitCreate}
@@ -134,9 +163,9 @@ export default function Social() {
 
                 <JoinSquadModal
                     visible={showJoinModal}
-                    loading={joining}
-                    inviteCode={joinCode}
-                    onChangeInviteCode={setJoinCode}
+                    loading={isLoading}
+                    inviteCode={inviteCode}
+                    onChangeInviteCode={setInviteCode}
                     onClose={() => setShowJoinModal(false)}
                     onSubmit={handleJoinSquad}
                 />
@@ -147,27 +176,36 @@ export default function Social() {
     return (
         <View style={styles.container}>
             <Text style={styles.title}>{squad.name}</Text>
+            {!!errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
 
             <View style={styles.streakCard}>
                 <Text style={styles.flame}>🔥</Text>
                 <View>
-                    <Text style={styles.streakValue}>{squad.current_streak}</Text>
-                    <Text style={styles.streakLabel}>Current Streak</Text>
+                    <Text style={styles.streakValue}>{squad.currentStreak}</Text>
+                    <Text style={styles.streakLabel}>
+                        Current Streak ({squad.getStreakStatus()})
+                    </Text>
                 </View>
                 <View style={styles.goalPill}>
-                    <Text style={styles.goalText}>Goal: {squad.weekly_goal}/week</Text>
+                    <Text style={styles.goalText}>Goal: {squad.weeklyGoal}/week</Text>
                 </View>
             </View>
+
+            <Text style={styles.subtitle}>
+                Completion: {squad.getCompletionPercentage()}%
+            </Text>
 
             <Text style={styles.sectionTitle}>Members</Text>
             {squad.members.map((member) => (
                 <View key={member.user_id} style={styles.memberRow}>
                     <View>
-                        <Text style={styles.memberName}>{member.user_id}</Text>
+                        <Text style={styles.memberName}>
+                            {formatMemberDisplayName(member.user_id)}
+                        </Text>
                         <Text style={styles.memberRole}>{member.role || "member"}</Text>
                     </View>
                     <Text style={styles.memberProgress}>
-                        {member.workouts_this_week}/{squad.weekly_goal}
+                        {member.workouts_this_week}/{squad.weeklyGoal}
                     </Text>
                 </View>
             ))}
@@ -287,6 +325,10 @@ const styles = StyleSheet.create({
     subtitle: {
         color: "#6b7280",
         marginBottom: 20,
+    },
+    errorText: {
+        color: "#b91c1c",
+        marginBottom: 10,
     },
     primaryButton: {
         backgroundColor: "#2563eb",

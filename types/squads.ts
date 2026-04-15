@@ -1,10 +1,6 @@
-export type SquadMember = {
-    user_id: string;
-    role: string | null;
-    workouts_this_week: number;
-};
+import { SquadMember } from "@/lib/models/Squad";
 
-export type Squad = {
+export type SquadRaw = {
     id: string;
     name: string;
     invite_code: string;
@@ -15,7 +11,7 @@ export type Squad = {
 
 export type UserSquadsResponse = {
     user_id: string;
-    squads: Squad[];
+    squads: SquadRaw[];
 };
 
 export type CreateSquadRequest = {
