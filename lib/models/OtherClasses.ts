@@ -1,0 +1,1 @@
+/* Need to add: PersonalRecord, Squad, SquadMembership, WeeklyChallenge */

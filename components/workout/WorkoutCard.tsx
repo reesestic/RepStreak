@@ -38,7 +38,11 @@ export default function WorkoutCard({
                                     }: any) {
     const [sets, setSets] = useState<any[]>([]);
     const [reps, setReps] = useState(exercise.targetReps);
-    const [weight, setWeight] = useState("");
+    const [weight, setWeight] = useState(
+        exercise.recommendedWeight
+            ? String(exercise.recommendedWeight)
+            : ""
+    );
     const [startTime, setStartTime] = useState<number | null>(null);
     const [tick, setTick] = useState(0);
     const [running, setRunning] = useState(false);

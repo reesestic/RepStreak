@@ -1,11 +1,29 @@
 import { View, Text, Button } from "react-native";
 import { useRouter } from "expo-router";
+import { Exercise } from "@/lib/models/Exercise";
+import { getExercisesByMuscles } from "@/lib/services/exerciseService";
+import { generateWorkout } from "@/lib/services/generateWorkout";
 
 export default function Home() {
     const router = useRouter();
 
-    function handleStartWorkout() {
-        router.push("/workout"); // go to workout flow
+    async function handleStartWorkout() {
+        const muscles = ["back", "biceps"];
+        const time = 45;
+
+        const rawExercises = await getExercisesByMuscles(muscles);
+        const exercises = rawExercises.map(e => new Exercise(e));
+
+        const workout: Exercise[] = generateWorkout({ exercises, muscles, timeMinutes: time });
+
+        router.push({
+            pathname: "/generate",
+            params: {
+                // 🔥 Exercise has toPlain(), use it
+                workout: JSON.stringify(workout.map(e => e.toPlain())),
+                allExercises: JSON.stringify(exercises.map(e => e.toPlain())),
+            },
+        });
     }
 
     return (
