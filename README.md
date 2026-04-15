@@ -53,6 +53,4 @@ Join our community of developers creating universal apps.
 # start uvicorn
 ```bash
 uvicorn backend.squads_api:app --host 0.0.0.0 --port 8000 --reload
-uvicorn backend.squads_api:app --host 0.0.0.0 --port 8000 --reload
-
 ```
