@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { ProfileService } from "@/lib/services/profileService";
 
 const AuthContext = createContext<any>(null);
 
@@ -34,11 +35,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     async function signUp(email: string, password: string) {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
             email,
             password,
         });
         if (error) throw error;
+        if (data.user) {
+            try {
+                await ProfileService.ensureProfile(data.user.id);
+            } catch {
+                // Row may be created after email confirmation or on first Profile load.
+            }
+        }
     }
 
     async function signOut() {
