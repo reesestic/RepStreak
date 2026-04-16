@@ -9,22 +9,14 @@ import {
 } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { Profile } from "@/lib/models/Profile";
+import { ProfileService } from "@/lib/services/profileService";
 import { SPLITS, SplitType } from "@/lib/splits";
 
-export default function Profile() {
+export default function ProfileScreen() {
     const { user, signOut } = useAuth();
 
-    const [split, setSplit] = useState<SplitType | null>(null);
-    const [splitIndex, setSplitIndex] = useState(0);
-
-    const [gym, setGym] = useState("Home Gym");
-    const [squad, setSquad] = useState("The Dawgs");
-
-    const [weight, setWeight] = useState("");
-    const [height, setHeight] = useState("");
-    const [age, setAge] = useState("");
-    const [sex, setSex] = useState("Male");
+    const [profile, setProfile] = useState<Profile | null>(null);
 
     const [showSplitModal, setShowSplitModal] = useState(false);
     const [showDayModal, setShowDayModal] = useState(false);
@@ -33,50 +25,61 @@ export default function Profile() {
     // 🔥 LOAD PROFILE
     useEffect(() => {
         async function load() {
-            const { data } = await supabase
-                .from("Profiles")
-                .select("*")
-                .eq("id", user.id)
-                .single();
-
-            if (data) {
-                setSplit((data.workout_split as SplitType) || null);
-                setSplitIndex(data.split_index || 0);
-
-                setWeight(String(data.weight || ""));
-                setHeight(String(data.height || ""));
-                setAge(String(data.age || ""));
-                setSex(data.sex || "Male");
-            }
+            const p = await ProfileService.getProfile(user.id);
+            setProfile(p);
         }
-
         load();
     }, []);
 
+    function requireProfile(): Profile {
+        if (!profile) {
+            throw new Error("Profile not loaded");
+        }
+        return profile;
+    }
+
+    // 🔥 CENTRALIZED UPDATE
+    function updateProfile(update: Partial<Profile>) {
+        const p = requireProfile();
+        const updated = new Profile(p.toPlain());
+        updated.updateProfile(update);
+        setProfile(updated);
+    }
+
+    // 🔥 SAVE
+    async function saveProfile() {
+        const p = requireProfile();
+        await ProfileService.updateProfile(p);
+    }
+
     // 🔥 SAVE SPLIT
     async function saveSplit(newSplit: SplitType, newIndex: number) {
-        await supabase.from("Profiles").upsert({
-            id: user.id,
-            workout_split: newSplit,
-            split_index: newIndex,
+        const updated = new Profile(requireProfile().toPlain());
+
+        updated.updateProfile({
+            workoutSplit: newSplit,
+            splitIndex: newIndex,
         });
 
-        setSplit(newSplit);
-        setSplitIndex(newIndex);
+        setProfile(updated);
+        await ProfileService.updateProfile(updated);
+
+        setShowDayModal(false);
     }
 
     // 🔥 SAVE PERSONAL DATA
     async function savePersonal() {
-        await supabase.from("Profiles").upsert({
-            id: user.id,
-            weight: Number(weight),
-            height: Number(height),
-            age: Number(age),
-            sex: sex,
-        });
-
+        await saveProfile();
         setShowPersonalModal(false);
     }
+
+    // 🔥 EARLY RETURN (keeps JSX safe)
+    if (!profile) {
+        return <Text>Loading...</Text>;
+    }
+
+    const p = requireProfile(); // 🔥 single safe reference
+    const split = p.workoutSplit ? SPLITS[p.workoutSplit] : null;
 
     return (
         <View style={styles.container}>
@@ -87,37 +90,31 @@ export default function Profile() {
                     source={{ uri: "https://i.pravatar.cc/150" }}
                     style={styles.avatar}
                 />
-                <Text style={styles.username}>Reese</Text>
+                <Text style={styles.username}>{p.username}</Text>
             </View>
 
             {/* SPLIT */}
             <View style={styles.card}>
                 <TouchableOpacity onPress={() => setShowSplitModal(true)}>
                     <Text style={styles.label}>Workout Split</Text>
-                    <Text style={[styles.value, !split && { color: "#2563eb" }]}>
-                        {split ? split : "Add a split"}
+                    <Text style={[styles.value, !p.workoutSplit && { color: "#2563eb" }]}>
+                        {p.workoutSplit ? p.workoutSplit : "Add a split"}
                     </Text>
                 </TouchableOpacity>
 
                 {split && (
                     <Text style={styles.sub}>
-                        Current Day: {splitIndex + 1}
+                        Current Day: {p.getNextWorkoutDay(split.length)}
                     </Text>
                 )}
             </View>
 
-            {/* GYM + SQUAD */}
-            <View style={styles.card}>
-                <Row label="Gym" value={gym} />
-                <Row label="Squad" value={squad} />
-            </View>
-
             {/* PERSONAL DATA */}
             <View style={styles.card}>
-                <Row label="Weight" value={weight || "Not set"} />
-                <Row label="Height" value={height || "Not set"} />
-                <Row label="Age" value={age || "Not set"} />
-                <Row label="Sex" value={sex} />
+                <Row label="Weight" value={p.weight || "Not set"} />
+                <Row label="Height" value={p.height || "Not set"} />
+                <Row label="Age" value={p.age || "Not set"} />
+                <Row label="Sex" value={p.sex || "Not set"} />
 
                 <TouchableOpacity onPress={() => setShowPersonalModal(true)}>
                     <Text style={styles.edit}>Edit Personal Data</Text>
@@ -137,7 +134,7 @@ export default function Profile() {
                             key={s}
                             onPress={() => {
                                 setShowSplitModal(false);
-                                setSplit(s);
+                                updateProfile({ workoutSplit: s });
                                 setShowDayModal(true);
                             }}
                         >
@@ -152,19 +149,15 @@ export default function Profile() {
                 <View style={styles.modal}>
                     <Text>Select Starting Day</Text>
 
-                    {split && SPLITS[split].map((_, i) => (
-                        <TouchableOpacity
-                            key={i}
-                            onPress={() => {
-                                saveSplit(split, i);
-                                setShowDayModal(false);
-                            }}
-                        >
-                            <Text style={styles.option}>
-                                Day {i + 1}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
+                    {p.workoutSplit &&
+                        SPLITS[p.workoutSplit as SplitType].map((_, i) => (
+                            <TouchableOpacity
+                                key={i}
+                                onPress={() => saveSplit(p.workoutSplit as SplitType, i)}
+                            >
+                                <Text style={styles.option}>Day {i + 1}</Text>
+                            </TouchableOpacity>
+                        ))}
                 </View>
             </Modal>
 
@@ -172,21 +165,47 @@ export default function Profile() {
             <Modal visible={showPersonalModal} transparent>
                 <View style={styles.modal}>
                     <View style={styles.modalCard}>
+
                         <Text>Weight</Text>
-                        <TextInput style={styles.input} value={weight} onChangeText={setWeight} />
+                        <TextInput
+                            style={styles.input}
+                            value={String(p.weight || "")}
+                            onChangeText={(v) =>
+                                updateProfile({ weight: Number(v) })
+                            }
+                        />
 
                         <Text>Height</Text>
-                        <TextInput style={styles.input} value={height} onChangeText={setHeight} />
+                        <TextInput
+                            style={styles.input}
+                            value={String(p.height || "")}
+                            onChangeText={(v) =>
+                                updateProfile({ height: Number(v) })
+                            }
+                        />
 
                         <Text>Age</Text>
-                        <TextInput style={styles.input} value={age} onChangeText={setAge} />
+                        <TextInput
+                            style={styles.input}
+                            value={String(p.age || "")}
+                            onChangeText={(v) =>
+                                updateProfile({ age: Number(v) })
+                            }
+                        />
 
                         <Text>Sex</Text>
-                        <TextInput style={styles.input} value={sex} onChangeText={setSex} />
+                        <TextInput
+                            style={styles.input}
+                            value={p.sex || ""}
+                            onChangeText={(v) =>
+                                updateProfile({ sex: v })
+                            }
+                        />
 
                         <TouchableOpacity onPress={savePersonal}>
                             <Text style={styles.save}>Save</Text>
                         </TouchableOpacity>
+
                     </View>
                 </View>
             </Modal>
