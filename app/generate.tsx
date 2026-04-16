@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { generateWorkoutWithWeights } from "@/lib/services/generateWorkoutWithWeights";
+import { WorkoutService } from "@/lib/services/WorkoutService";
 import { supabase } from "@/lib/supabase";
 
 const PLACEHOLDER = {
@@ -155,13 +155,12 @@ export default function Generate() {
                     style={styles.startButton}
                     onPress={async () => {
                         const { data: { user } } = await supabase.auth.getUser();
-
-                        const enrichedWorkout = await generateWorkoutWithWeights(user!.id, selected);
+                        const enrichedWorkout = await WorkoutService.generateWithWeights(user!.id, selected);
 
                         router.push({
                             pathname: "/workout",
                             params: {
-                                workout: JSON.stringify(enrichedWorkout.map(we => we.toPlain())),
+                                workout: JSON.stringify(enrichedWorkout.map(we => we.toRoutePlain())),
                             },
                         });
                     }}

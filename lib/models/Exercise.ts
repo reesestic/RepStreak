@@ -1,36 +1,53 @@
 export class Exercise {
-    exerciseId: string;
+    id: string;
     name: string;
-    muscleGroup: string;
-    equipmentType: string;
-    movementCategory: string;
-    isCompound: boolean;
+
+    primary_muscle: string;
+    secondary_muscles: string[];
+
+    movement_category: string;
+    equipment_type: string;
+    difficulty: string;
+    is_compound: boolean;
+
+    created_at?: Date;
 
     constructor(raw: any) {
-        this.exerciseId = raw.id;
+        this.id = raw.id;
         this.name = raw.name;
-        this.muscleGroup = raw.primary_muscle;
-        this.equipmentType = raw.equipment_type ?? "";
-        this.movementCategory = raw.movement_category ?? "";
-        this.isCompound = raw.is_compound ?? false;
+
+        this.primary_muscle = raw.primary_muscle;
+        this.secondary_muscles = raw.secondary_muscles ?? [];
+
+        this.movement_category = raw.movement_category ?? "";
+        this.equipment_type = raw.equipment_type ?? "";
+        this.difficulty = raw.difficulty ?? "";
+
+        this.is_compound = raw.is_compound ?? false;
+
+        this.created_at = raw.created_at
+            ? new Date(raw.created_at)
+            : undefined;
     }
 
     static getByMuscleGroup(exercises: Exercise[], group: string): Exercise[] {
-        return exercises.filter(e => e.muscleGroup === group);
+        return exercises.filter(e => e.primary_muscle === group);
     }
 
-    getById(exercises: Exercise[], id: string): Exercise | undefined {
-        return exercises.find(e => e.exerciseId === id);
+    static getById(exercises: Exercise[], id: string): Exercise | undefined {
+        return exercises.find(e => e.id === id);
     }
 
     toPlain() {
         return {
-            id: this.exerciseId,
+            id: this.id,
             name: this.name,
-            primary_muscle: this.muscleGroup,
-            movement_category: this.movementCategory,
-            equipment_type: this.equipmentType,
-            is_compound: this.isCompound,
+            primary_muscle: this.primary_muscle,
+            secondary_muscles: this.secondary_muscles,
+            movement_category: this.movement_category,
+            equipment_type: this.equipment_type,
+            difficulty: this.difficulty,
+            is_compound: this.is_compound,
         };
     }
 }
