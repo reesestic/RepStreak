@@ -15,8 +15,8 @@ import { useAuth } from "@/context/AuthContext";
 import { createSquad, getUserSquads, joinSquad } from "@/lib/services/squadService";
 import { Squad, SquadRaw } from "@/lib/models/Squad";
 
-function showNudgeSentFeedback(userId: string) {
-    const body = "You sent a reminder to " + userId;
+function showNudgeSentFeedback(displayName: string) {
+    const body = "You sent a reminder to " + displayName;
     if (Platform.OS === "web") {
         if (typeof window !== "undefined" && typeof window.alert === "function") {
             window.alert(`Nudge Sent!\n\n${body}`);
@@ -257,6 +257,10 @@ export default function Social() {
                     <Text style={styles.goalText}>Goal: {squad.weeklyGoal}/week</Text>
                 </View>
             </View>
+            <View style={styles.inviteCodeCard}>
+                <Text style={styles.inviteCodeLabel}>Squad Join Code</Text>
+                <Text style={styles.inviteCodeValue}>{squad.inviteCode}</Text>
+            </View>
 
             <Text style={styles.subtitle}>
                 Completion: {squad.getCompletionPercentage()}%
@@ -297,7 +301,9 @@ export default function Social() {
                         {member.workoutsThisWeek === 0 && (
                             <Pressable
                                 style={styles.nudgeButton}
-                                onPress={() => showNudgeSentFeedback(member.userId)}
+                                onPress={() =>
+                                    showNudgeSentFeedback(formatMemberDisplayName(member))
+                                }
                             >
                                 <Text style={styles.nudgeButtonText}>Nudge</Text>
                             </Pressable>
@@ -480,6 +486,24 @@ const styles = StyleSheet.create({
         color: "#1d4ed8",
         fontWeight: "600",
         fontSize: 12,
+    },
+    inviteCodeCard: {
+        backgroundColor: "white",
+        borderRadius: 10,
+        padding: 14,
+        marginBottom: 12,
+    },
+    inviteCodeLabel: {
+        color: "#6b7280",
+        marginBottom: 4,
+        fontSize: 12,
+        textTransform: "uppercase",
+        letterSpacing: 0.6,
+    },
+    inviteCodeValue: {
+        fontSize: 20,
+        fontWeight: "700",
+        letterSpacing: 1,
     },
     sectionTitle: {
         fontSize: 18,

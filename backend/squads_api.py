@@ -59,6 +59,7 @@ class SquadMemberResponse(BaseModel):
     user_id: str
     role: str | None = None
     workouts_this_week: int
+    profile_name: str | None = None
 
 
 class SquadDetailResponse(BaseModel):
@@ -78,6 +79,25 @@ class UserSquadsResponse(BaseModel):
 def generate_invite_code(length: int = 6) -> str:
     alphabet = string.ascii_uppercase + string.digits
     return "".join(random.choices(alphabet, k=length))
+
+
+def fetch_profile_names(user_ids: list[str]) -> dict[str, str]:
+    unique = list({uid for uid in user_ids if uid})
+    if not unique:
+        return {}
+    res = (
+        supabase.table("Profiles")
+        .select("id,username")
+        .in_("id", unique)
+        .execute()
+    )
+    out: dict[str, str] = {}
+    for row in res.data or []:
+        uid = str(row.get("id", ""))
+        name = (row.get("username") or "").strip()
+        if uid:
+            out[uid] = name
+    return out
 
 
 def unique_invite_code() -> str:
@@ -122,7 +142,7 @@ def create_squad(payload: CreateSquadRequest):
             {
                 "squad_id": squad["id"],
                 "user_id": payload.user_id,
-                "role": "leader",
+                "role": "admin",
                 "workouts_this_week": 0,
             }
         )
@@ -212,14 +232,19 @@ def get_user_squads(user_id: str):
         .execute()
     )
 
+    member_rows = all_memberships.data or []
+    name_map = fetch_profile_names([str(m["user_id"]) for m in member_rows])
+
     members_by_squad: dict[str, list[dict]] = {}
-    for member in all_memberships.data or []:
+    for member in member_rows:
         squad_id = str(member["squad_id"])
+        uid = str(member["user_id"])
         members_by_squad.setdefault(squad_id, []).append(
             {
-                "user_id": member["user_id"],
+                "user_id": uid,
                 "role": member.get("role"),
                 "workouts_this_week": member.get("workouts_this_week", 0),
+                "profile_name": name_map.get(uid) or None,
             }
         )
 

@@ -18,7 +18,7 @@ export class Profile {
 
     constructor(raw: any) {
         this.userId = raw.id;
-        this.username = raw.username;
+        this.username = raw.username ?? "";
         this.height = raw.height;
         this.weight = raw.weight;
         this.age = raw.age;

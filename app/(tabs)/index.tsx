@@ -1,11 +1,28 @@
+import { useEffect, useState } from "react";
 import { View, Text, Button } from "react-native";
 import { useRouter } from "expo-router";
-import { Exercise } from "@/lib/models/Exercise";
+import { useAuth } from "@/context/AuthContext";
 import { ExerciseService } from "@/lib/services/ExerciseService";
 import { GenerateService } from "@/lib/services/GenerateService";
+import { ProfileService } from "@/lib/services/profileService";
 
 export default function Home() {
     const router = useRouter();
+    const { user } = useAuth();
+    const [username, setUsername] = useState("");
+
+    useEffect(() => {
+        if (!user?.id) return;
+        let cancelled = false;
+        ProfileService.ensureProfile(user.id).then((p) => {
+            if (!cancelled) {
+                setUsername(p.username?.trim() || "Athlete");
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [user?.id]);
 
     async function handleStartWorkout() {
         const muscles = ["back", "biceps"];
@@ -28,7 +45,7 @@ export default function Home() {
 
             {/* 👋 Greeting */}
             <Text style={{ fontSize: 24, fontWeight: "bold" }}>
-                Welcome back, Reese 👋
+                Welcome back{username ? `, ${username}` : ""} 👋
             </Text>
 
             {/* 🔥 Streak */}

@@ -22,14 +22,15 @@ export default function ProfileScreen() {
     const [showDayModal, setShowDayModal] = useState(false);
     const [showPersonalModal, setShowPersonalModal] = useState(false);
 
-    // 🔥 LOAD PROFILE
+    // 🔥 LOAD PROFILE (creates row + random username if missing)
     useEffect(() => {
+        if (!user?.id) return;
         async function load() {
-            const p = await ProfileService.getProfile(user.id);
+            const p = await ProfileService.ensureProfile(user.id);
             setProfile(p);
         }
         load();
-    }, []);
+    }, [user?.id]);
 
     function requireProfile(): Profile {
         if (!profile) {
@@ -74,6 +75,9 @@ export default function ProfileScreen() {
     }
 
     // 🔥 EARLY RETURN (keeps JSX safe)
+    if (!user?.id) {
+        return <Text>Loading...</Text>;
+    }
     if (!profile) {
         return <Text>Loading...</Text>;
     }
@@ -111,6 +115,7 @@ export default function ProfileScreen() {
 
             {/* PERSONAL DATA */}
             <View style={styles.card}>
+                <Row label="Username" value={p.username || "Not set"} />
                 <Row label="Weight" value={p.weight || "Not set"} />
                 <Row label="Height" value={p.height || "Not set"} />
                 <Row label="Age" value={p.age || "Not set"} />
@@ -165,6 +170,17 @@ export default function ProfileScreen() {
             <Modal visible={showPersonalModal} transparent>
                 <View style={styles.modal}>
                     <View style={styles.modalCard}>
+
+                        <Text>Username</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={p.username || ""}
+                            onChangeText={(v) =>
+                                updateProfile({ username: v })
+                            }
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                        />
 
                         <Text>Weight</Text>
                         <TextInput
