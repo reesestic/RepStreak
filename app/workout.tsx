@@ -58,7 +58,13 @@ export default function Workout() {
     const next    = exercises[index + 1];
 
     function handleFinish(sets: any[]) {
-        setLog([...log, { exercise: current, sets }]);
+        setLog([...log, {
+            exercise: {
+                id: current.exercise_id,
+                name: current.name,
+            },
+            sets
+        }]);
         if (index < exercises.length - 1) {
             setIndex(index + 1);
         } else {
@@ -67,7 +73,13 @@ export default function Workout() {
     }
 
     function handleSkip() {
-        setLog([...log, { exercise: current, sets: [] }]);
+        setLog([...log, {
+            exercise: {
+                id: current.exercise_id,
+                name: current.name,
+            },
+            sets: []
+        }]);
         if (index < exercises.length - 1) {
             setIndex(index + 1);
         } else {
