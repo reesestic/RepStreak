@@ -16,7 +16,7 @@ export class WorkoutSession {
     totalVolume?: number;
 
     constructor(raw: any) {
-        this.workoutId = raw.id ?? crypto.randomUUID();
+        this.workoutId = raw.id;
         this.userId = raw.user_id;
 
         this.startedAt = new Date(raw.started_at ?? Date.now());

@@ -32,11 +32,9 @@ export class WorkoutService {
 
     static async saveFromLog(userId: string, log: any[]): Promise<void> {
 
-        console.log("exercise IDs being saved:", log.map(e => e.exercise.id));
+        //console.log("exercise IDs being saved:", log.map(e => e.exercise.id));
 
         const completedLog = log.filter(entry => entry.sets.length > 0);
-
-        if (!completedLog.length) return;
 
         // 1. Create session
         const session = new WorkoutSession({
