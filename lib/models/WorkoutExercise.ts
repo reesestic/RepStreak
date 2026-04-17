@@ -16,7 +16,7 @@ export class WorkoutExercise {
     exercise?: Exercise;
 
     constructor(raw: any) {
-        this.id = raw.id ?? crypto.randomUUID();
+        this.id = raw.id;
         this.session_id = raw.session_id;
         this.exercise_id = raw.exercise_id;
         this.order_index = raw.order_index ?? 0;

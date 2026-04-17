@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
-load_dotenv("../.env")
+load_dotenv("./.env")
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")

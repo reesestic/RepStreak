@@ -11,7 +11,7 @@ export class WorkoutSet {
     isPersonalRecord?: boolean;
 
     constructor(raw: any) {
-        this.id = raw.id ?? crypto.randomUUID();
+        this.id = raw.id;
         this.workout_exercise_id = raw.workout_exercise_id;
 
         this.reps = raw.reps ?? 0;
