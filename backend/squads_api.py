@@ -1,6 +1,8 @@
 import os
 import random
 import string
+from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,7 +10,12 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
-load_dotenv("./.env")
+
+ChallengeType = Literal["visits", "volume", "reps"]
+
+# Load .env from the project root (parent of backend/) regardless of CWD.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_PROJECT_ROOT / ".env")
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -68,6 +75,7 @@ class SquadDetailResponse(BaseModel):
     invite_code: str
     weekly_goal: int
     current_streak: int
+    created_by: str | None = None
     members: list[SquadMemberResponse]
 
 
@@ -216,7 +224,7 @@ def join_squad(payload: JoinSquadRequest):
 def get_user_squads(user_id: str):
     user_memberships = (
         supabase.table("squad_members")
-        .select("squad_id,squads(id,name,invite_code,weekly_goal,current_streak)")
+        .select("squad_id,squads(id,name,invite_code,weekly_goal,current_streak,created_by)")
         .eq("user_id", user_id)
         .execute()
     )
@@ -260,8 +268,217 @@ def get_user_squads(user_id: str):
                     "invite_code": squad.get("invite_code"),
                     "weekly_goal": squad.get("weekly_goal", 0),
                     "current_streak": squad.get("current_streak", 0),
+                    "created_by": str(squad["created_by"]) if squad.get("created_by") else None,
                     "members": members_by_squad.get(squad_id, []),
                 }
             )
 
     return {"user_id": user_id, "squads": squads}
+
+
+# --------------------------------------------------------------------------
+# Use Case 4: Squad Challenges
+# --------------------------------------------------------------------------
+
+
+class CreateChallengeRequest(BaseModel):
+    user_id: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=100)
+    target_goal: int = Field(ge=1)
+    challenge_type: ChallengeType = "visits"
+    duration_days: int = Field(default=7, ge=1, le=365)
+
+
+class ParticipationRequest(BaseModel):
+    user_id: str = Field(min_length=1)
+    opt_in: bool
+
+
+class ChallengeParticipantResponse(BaseModel):
+    user_id: str
+    progress: int
+
+
+class ChallengeResponse(BaseModel):
+    id: str
+    squad_id: str
+    name: str
+    target_goal: int
+    challenge_type: ChallengeType
+    duration_days: int
+    is_active: bool
+    created_by: str
+    created_at: str | None = None
+    ends_at: str | None = None
+    participants: list[ChallengeParticipantResponse]
+
+
+class ChallengeListResponse(BaseModel):
+    squad_id: str
+    challenges: list[ChallengeResponse]
+
+
+class ParticipationResponse(BaseModel):
+    challenge_id: str
+    user_id: str
+    opted_in: bool
+
+
+def _require_squad_admin(squad_id: str, user_id: str) -> None:
+    """Ensures the caller is the squad's created_by (admin)."""
+    squad_result = (
+        supabase.table("squads")
+        .select("id,created_by")
+        .eq("id", squad_id)
+        .limit(1)
+        .execute()
+    )
+    if not squad_result.data:
+        raise HTTPException(status_code=404, detail="Squad not found.")
+    squad = squad_result.data[0]
+    if str(squad.get("created_by")) != str(user_id):
+        raise HTTPException(status_code=403, detail="Only the squad admin can perform this action.")
+
+
+def _fetch_participants_by_challenge(challenge_ids: list[str]) -> dict[str, list[dict]]:
+    if not challenge_ids:
+        return {}
+    res = (
+        supabase.table("challenge_participants")
+        .select("challenge_id,user_id,progress")
+        .in_("challenge_id", challenge_ids)
+        .execute()
+    )
+    out: dict[str, list[dict]] = {}
+    for row in res.data or []:
+        cid = str(row["challenge_id"])
+        out.setdefault(cid, []).append(
+            {
+                "user_id": str(row["user_id"]),
+                "progress": int(row.get("progress") or 0),
+            }
+        )
+    return out
+
+
+@app.post("/squads/{squad_id}/challenges", response_model=ChallengeResponse)
+def create_challenge(squad_id: str, payload: CreateChallengeRequest):
+    _require_squad_admin(squad_id, payload.user_id)
+
+    insert = (
+        supabase.table("squad_challenges")
+        .insert(
+            {
+                "squad_id": squad_id,
+                "name": payload.name.strip(),
+                "target_goal": payload.target_goal,
+                "challenge_type": payload.challenge_type,
+                "duration_days": payload.duration_days,
+                "is_active": True,
+                "created_by": payload.user_id,
+            }
+        )
+        .execute()
+    )
+    if not insert.data:
+        raise HTTPException(status_code=500, detail="Could not create challenge.")
+
+    row = insert.data[0]
+    return {
+        "id": str(row["id"]),
+        "squad_id": str(row["squad_id"]),
+        "name": row["name"],
+        "target_goal": int(row["target_goal"]),
+        "challenge_type": row.get("challenge_type") or "visits",
+        "duration_days": int(row.get("duration_days") or 7),
+        "is_active": bool(row.get("is_active", True)),
+        "created_by": str(row["created_by"]),
+        "created_at": row.get("created_at"),
+        "ends_at": row.get("ends_at"),
+        "participants": [],
+    }
+
+
+@app.get("/squads/{squad_id}/challenges", response_model=ChallengeListResponse)
+def list_squad_challenges(squad_id: str, active_only: bool = True):
+    query = (
+        supabase.table("squad_challenges")
+        .select(
+            "id,squad_id,name,target_goal,challenge_type,duration_days,is_active,created_by,created_at,ends_at"
+        )
+        .eq("squad_id", squad_id)
+        .order("created_at", desc=True)
+    )
+    if active_only:
+        query = query.eq("is_active", True)
+    res = query.execute()
+
+    rows = res.data or []
+    participants_map = _fetch_participants_by_challenge([str(r["id"]) for r in rows])
+
+    challenges = []
+    for row in rows:
+        cid = str(row["id"])
+        challenges.append(
+            {
+                "id": cid,
+                "squad_id": str(row["squad_id"]),
+                "name": row["name"],
+                "target_goal": int(row["target_goal"]),
+                "challenge_type": row.get("challenge_type") or "visits",
+                "duration_days": int(row.get("duration_days") or 7),
+                "is_active": bool(row.get("is_active", True)),
+                "created_by": str(row["created_by"]),
+                "created_at": row.get("created_at"),
+                "ends_at": row.get("ends_at"),
+                "participants": participants_map.get(cid, []),
+            }
+        )
+    return {"squad_id": squad_id, "challenges": challenges}
+
+
+@app.post("/challenges/{challenge_id}/participation", response_model=ParticipationResponse)
+def set_participation(challenge_id: str, payload: ParticipationRequest):
+    challenge_result = (
+        supabase.table("squad_challenges")
+        .select("id")
+        .eq("id", challenge_id)
+        .limit(1)
+        .execute()
+    )
+    if not challenge_result.data:
+        raise HTTPException(status_code=404, detail="Challenge not found.")
+
+    if payload.opt_in:
+        existing = (
+            supabase.table("challenge_participants")
+            .select("id")
+            .eq("challenge_id", challenge_id)
+            .eq("user_id", payload.user_id)
+            .limit(1)
+            .execute()
+        )
+        if not existing.data:
+            insert = (
+                supabase.table("challenge_participants")
+                .insert(
+                    {
+                        "challenge_id": challenge_id,
+                        "user_id": payload.user_id,
+                        "progress": 0,
+                    }
+                )
+                .execute()
+            )
+            if not insert.data:
+                raise HTTPException(status_code=500, detail="Could not opt in to challenge.")
+        return {"challenge_id": challenge_id, "user_id": payload.user_id, "opted_in": True}
+
+    (
+        supabase.table("challenge_participants")
+        .delete()
+        .eq("challenge_id", challenge_id)
+        .eq("user_id", payload.user_id)
+        .execute()
+    )
+    return {"challenge_id": challenge_id, "user_id": payload.user_id, "opted_in": False}

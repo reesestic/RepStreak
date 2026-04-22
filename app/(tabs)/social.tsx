@@ -5,6 +5,7 @@ import {
     Modal,
     Platform,
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -13,7 +14,18 @@ import {
 } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { createSquad, getUserSquads, joinSquad } from "@/lib/services/squadService";
+import {
+    createChallenge,
+    getSquadChallenges,
+    setChallengeParticipation,
+} from "@/lib/services/challengeService";
 import { Squad, SquadRaw } from "@/lib/models/Squad";
+import {
+    CHALLENGE_TYPES,
+    ChallengeType,
+    WeeklyChallenge,
+    getChallengeDisplayLabel,
+} from "@/lib/models/WeeklyChallenge";
 
 function showNudgeSentFeedback(displayName: string) {
     const body = "You sent a reminder to " + displayName;
@@ -44,9 +56,28 @@ export default function Social() {
     const [weeklyGoal, setWeeklyGoal] = useState("");
     const [inviteCode, setInviteCode] = useState("");
 
+    // Use Case 4: Squad Challenges state
+    const [challenges, setChallenges] = useState<WeeklyChallenge[]>([]);
+    const [challengesError, setChallengesError] = useState("");
+    const [challengesLoading, setChallengesLoading] = useState(false);
+    const [showChallengeModal, setShowChallengeModal] = useState(false);
+    const [challengeName, setChallengeName] = useState("");
+    const [challengeGoal, setChallengeGoal] = useState("");
+    const [challengeType, setChallengeType] = useState<ChallengeType>("visits");
+    const [creatingChallenge, setCreatingChallenge] = useState(false);
+    const [togglingChallengeId, setTogglingChallengeId] = useState<string | null>(null);
+
     const canSubmitCreate = useMemo(() => {
         return squadName.trim().length > 0 && Number(weeklyGoal) > 0;
     }, [squadName, weeklyGoal]);
+
+    const canSubmitChallenge = useMemo(() => {
+        return challengeName.trim().length > 0 && Number(challengeGoal) > 0;
+    }, [challengeName, challengeGoal]);
+
+    const isSquadAdmin = useMemo(() => {
+        return !!(squad && user?.id && squad.isAdmin(user.id));
+    }, [squad, user?.id]);
 
     useEffect(() => {
         if (!user?.id) {
@@ -55,6 +86,14 @@ export default function Social() {
         }
         void loadSquad();
     }, [user?.id]);
+
+    useEffect(() => {
+        if (!squad?.id) {
+            setChallenges([]);
+            return;
+        }
+        void loadChallenges(squad.id);
+    }, [squad?.id]);
 
     async function loadSquad() {
         if (!user?.id) return;
@@ -159,15 +198,125 @@ export default function Social() {
     function handleLeaveSquadForTesting() {
         setErrorMsg("");
         setSquad(null);
+        setChallenges([]);
+        setChallengesError("");
         setShowCreateModal(false);
         setShowJoinModal(false);
+        setShowChallengeModal(false);
         setInviteCode("");
         setSquadName("");
         setWeeklyGoal("");
+        setChallengeName("");
+        setChallengeGoal("");
+        setChallengeType("visits");
         if (Platform.OS === "android") {
             ToastAndroid.show("Left squad (test mode)", ToastAndroid.SHORT);
         } else {
             Alert.alert("Left squad", "Returned to no-squad state for testing.");
+        }
+    }
+
+    async function loadChallenges(squadId: string) {
+        try {
+            setChallengesError("");
+            setChallengesLoading(true);
+            const list = await getSquadChallenges(squadId, true);
+            setChallenges(list);
+        } catch (error: any) {
+            // Non-fatal: the rest of the dashboard should still render.
+            setChallengesError(error?.message || "Could not load challenges.");
+            setChallenges([]);
+        } finally {
+            setChallengesLoading(false);
+        }
+    }
+
+    function openCreateChallengeModal() {
+        setChallengesError("");
+        setChallengeName("");
+        setChallengeGoal("");
+        setChallengeType("visits");
+        setShowChallengeModal(true);
+    }
+
+    function cancelCreateChallenge() {
+        // Alternate scenario: user cancels creation.
+        setShowChallengeModal(false);
+        setChallengeName("");
+        setChallengeGoal("");
+        setChallengeType("visits");
+    }
+
+    async function handleCreateChallenge() {
+        if (!user?.id || !squad?.id || !canSubmitChallenge) return;
+        try {
+            setChallengesError("");
+            setCreatingChallenge(true);
+            const created = await createChallenge(squad.id, {
+                user_id: user.id,
+                name: challengeName.trim(),
+                target_goal: Number(challengeGoal),
+                challenge_type: challengeType,
+            });
+            setChallenges((prev) => [created, ...prev]);
+            setShowChallengeModal(false);
+            setChallengeName("");
+            setChallengeGoal("");
+            setChallengeType("visits");
+            if (Platform.OS === "android") {
+                ToastAndroid.show("Challenge created", ToastAndroid.SHORT);
+            } else {
+                Alert.alert("Challenge created", `"${created.name}" is now active.`);
+            }
+        } catch (error: any) {
+            // Alternate scenario: system fails to create. Keep modal open so the user can retry.
+            setChallengesError(error?.message || "Could not create challenge. Try again.");
+        } finally {
+            setCreatingChallenge(false);
+        }
+    }
+
+    async function handleToggleParticipation(challenge: WeeklyChallenge) {
+        if (!user?.id) return;
+        const currentlyOptedIn = challenge.getParticipantStatus(user.id);
+        const nextOptIn = !currentlyOptedIn;
+
+        try {
+            setChallengesError("");
+            setTogglingChallengeId(challenge.id);
+            await setChallengeParticipation(challenge.id, user.id, nextOptIn);
+            setChallenges((prev) =>
+                prev.map((c) => {
+                    if (c.id !== challenge.id) return c;
+                    const others = c.participants.filter((p) => p.userId !== user.id);
+                    const nextParticipants = nextOptIn
+                        ? [...others, { userId: user.id, progress: 0 } as any]
+                        : others;
+                    // Reconstruct a new WeeklyChallenge so methods work with updated list.
+                    return new WeeklyChallenge({
+                        id: c.id,
+                        squad_id: c.squadId,
+                        name: c.name,
+                        target_goal: c.targetGoal,
+                        challenge_type: c.challengeType,
+                        duration_days: c.durationDays,
+                        is_active: c.isActive,
+                        created_by: c.createdBy,
+                        created_at: c.createdAt,
+                        ends_at: c.endsAt,
+                        participants: nextParticipants.map((p) => ({
+                            user_id: p.userId,
+                            progress: p.progress,
+                        })),
+                    });
+                }),
+            );
+        } catch (error: any) {
+            setChallengesError(
+                error?.message || (nextOptIn ? "Could not opt in." : "Could not opt out."),
+            );
+        } finally {
+            setTogglingChallengeId(null);
         }
     }
 
@@ -241,7 +390,7 @@ export default function Social() {
     }
 
     return (
-        <View style={styles.container}>
+        <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
             <Text style={styles.title}>{squad.name}</Text>
             {!!errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
 
@@ -254,7 +403,9 @@ export default function Social() {
                     </Text>
                 </View>
                 <View style={styles.goalPill}>
-                    <Text style={styles.goalText}>Goal: {squad.weeklyGoal}/week</Text>
+                    <Text style={styles.goalText}>
+                        Goal: {squad.weeklyGoal} {squad.getGoalLabel()}/week
+                    </Text>
                 </View>
             </View>
             <View style={styles.inviteCodeCard}>
@@ -263,10 +414,7 @@ export default function Social() {
             </View>
 
             <Text style={styles.subtitle}>
-                Completion: {squad.getCompletionPercentage()}%
-            </Text>
-            <Text style={styles.subtitle}>
-                Team Progress: {squad.totalSquadWorkouts} workouts
+                Squad Goal: {squad.getFormattedWeeklyGoal()} ({squad.getCompletionPercentage()}%)
             </Text>
 
             <View style={styles.progressTrack}>
@@ -296,7 +444,7 @@ export default function Social() {
                     </View>
                     <View style={styles.memberActions}>
                         <Text style={styles.memberProgress}>
-                            {member.workoutsThisWeek}/{squad.weeklyGoal}
+                            {member.workoutsThisWeek}/{squad.weeklyGoal} {squad.getGoalLabel()}
                         </Text>
                         {member.workoutsThisWeek === 0 && (
                             <Pressable
@@ -311,7 +459,94 @@ export default function Social() {
                     </View>
                 </View>
             ))}
-        </View>
+
+            <View style={styles.challengesHeader}>
+                <Text style={styles.sectionTitle}>Challenges</Text>
+                {isSquadAdmin && (
+                    <Pressable
+                        style={styles.createChallengeButton}
+                        onPress={openCreateChallengeModal}
+                    >
+                        <Text style={styles.createChallengeButtonText}>+ Create</Text>
+                    </Pressable>
+                )}
+            </View>
+
+            {!!challengesError && (
+                <Text style={styles.errorText}>{challengesError}</Text>
+            )}
+
+            {challengesLoading ? (
+                <View style={styles.challengesLoading}>
+                    <ActivityIndicator />
+                </View>
+            ) : challenges.length === 0 ? (
+                <Text style={styles.emptyText}>
+                    {isSquadAdmin
+                        ? "No active challenges yet. Create one to get your squad going!"
+                        : "No active challenges yet."}
+                </Text>
+            ) : (
+                challenges.map((challenge) => {
+                    const optedIn = challenge.getParticipantStatus(user?.id);
+                    const isToggling = togglingChallengeId === challenge.id;
+                    return (
+                        <View key={challenge.id} style={styles.challengeCard}>
+                            <View style={styles.challengeCardHeader}>
+                                <Text style={styles.challengeName}>{challenge.name}</Text>
+                                <Text style={styles.challengeMeta}>
+                                    {challenge.getUnitLabel()}
+                                </Text>
+                            </View>
+                            <Text style={styles.challengeGoal}>
+                                Target: {challenge.getFormattedGoal()}
+                            </Text>
+                            <Text style={styles.challengeParticipants}>
+                                {challenge.participantCount} opted in
+                            </Text>
+                            <Pressable
+                                style={[
+                                    styles.toggleButton,
+                                    optedIn ? styles.toggleButtonOut : styles.toggleButtonIn,
+                                    isToggling && styles.disabled,
+                                ]}
+                                disabled={isToggling}
+                                onPress={() => handleToggleParticipation(challenge)}
+                            >
+                                <Text
+                                    style={
+                                        optedIn
+                                            ? styles.toggleButtonOutText
+                                            : styles.toggleButtonInText
+                                    }
+                                >
+                                    {isToggling
+                                        ? "Working..."
+                                        : optedIn
+                                          ? "Opt Out"
+                                          : "Opt In"}
+                                </Text>
+                            </Pressable>
+                        </View>
+                    );
+                })
+            )}
+
+            <CreateChallengeModal
+                visible={showChallengeModal}
+                loading={creatingChallenge}
+                name={challengeName}
+                goal={challengeGoal}
+                challengeType={challengeType}
+                errorText={challengesError}
+                canSubmit={canSubmitChallenge}
+                onChangeName={setChallengeName}
+                onChangeGoal={setChallengeGoal}
+                onChangeType={setChallengeType}
+                onClose={cancelCreateChallenge}
+                onSubmit={handleCreateChallenge}
+            />
+        </ScrollView>
     );
 }
 
@@ -406,11 +641,103 @@ function JoinSquadModal(props: JoinSquadModalProps) {
     );
 }
 
+type CreateChallengeModalProps = {
+    visible: boolean;
+    loading: boolean;
+    name: string;
+    goal: string;
+    challengeType: ChallengeType;
+    errorText: string;
+    canSubmit: boolean;
+    onChangeName: (value: string) => void;
+    onChangeGoal: (value: string) => void;
+    onChangeType: (value: ChallengeType) => void;
+    onClose: () => void;
+    onSubmit: () => void;
+};
+
+function CreateChallengeModal(props: CreateChallengeModalProps) {
+    return (
+        <Modal visible={props.visible} transparent animationType="fade">
+            <View style={styles.modalBackdrop}>
+                <View style={styles.modalCard}>
+                    <Text style={styles.modalTitle}>Create Challenge</Text>
+                    <TextInput
+                        value={props.name}
+                        onChangeText={props.onChangeName}
+                        placeholder="Challenge name"
+                        style={styles.input}
+                    />
+
+                    <Text style={styles.fieldLabel}>Challenge Type</Text>
+                    <View style={styles.typeSelector}>
+                        {CHALLENGE_TYPES.map((type) => {
+                            const selected = props.challengeType === type;
+                            return (
+                                <Pressable
+                                    key={type}
+                                    style={[
+                                        styles.typeChip,
+                                        selected && styles.typeChipSelected,
+                                    ]}
+                                    onPress={() => props.onChangeType(type)}
+                                >
+                                    <Text
+                                        style={
+                                            selected
+                                                ? styles.typeChipTextSelected
+                                                : styles.typeChipText
+                                        }
+                                    >
+                                        {getChallengeDisplayLabel(type)}
+                                    </Text>
+                                </Pressable>
+                            );
+                        })}
+                    </View>
+
+                    <TextInput
+                        value={props.goal}
+                        onChangeText={props.onChangeGoal}
+                        placeholder={`Target goal (e.g. ${
+                            props.challengeType === "volume" ? "50000" : "50"
+                        })`}
+                        keyboardType="number-pad"
+                        style={styles.input}
+                    />
+                    {!!props.errorText && (
+                        <Text style={styles.errorText}>{props.errorText}</Text>
+                    )}
+
+                    <Pressable
+                        style={[
+                            styles.primaryButton,
+                            (!props.canSubmit || props.loading) && styles.disabled,
+                        ]}
+                        onPress={props.onSubmit}
+                        disabled={!props.canSubmit || props.loading}
+                    >
+                        <Text style={styles.primaryButtonText}>
+                            {props.loading ? "Creating..." : "Create"}
+                        </Text>
+                    </Pressable>
+                    <Pressable style={styles.linkButton} onPress={props.onClose}>
+                        <Text style={styles.linkButtonText}>Cancel</Text>
+                    </Pressable>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         padding: 20,
         backgroundColor: "#f7f7f7",
+    },
+    scrollContent: {
+        paddingBottom: 40,
     },
     centered: {
         flex: 1,
@@ -625,5 +952,128 @@ const styles = StyleSheet.create({
     },
     disabled: {
         opacity: 0.6,
+    },
+    challengesHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginTop: 18,
+        marginBottom: 8,
+    },
+    createChallengeButton: {
+        backgroundColor: "#2563eb",
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 999,
+    },
+    createChallengeButtonText: {
+        color: "white",
+        fontWeight: "700",
+        fontSize: 12,
+    },
+    challengesLoading: {
+        paddingVertical: 12,
+        alignItems: "flex-start",
+    },
+    emptyText: {
+        color: "#6b7280",
+        fontStyle: "italic",
+        marginBottom: 10,
+    },
+    challengeCard: {
+        backgroundColor: "white",
+        borderRadius: 10,
+        padding: 14,
+        marginBottom: 8,
+    },
+    challengeCardHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 4,
+    },
+    challengeName: {
+        fontWeight: "700",
+        fontSize: 15,
+    },
+    challengeMeta: {
+        color: "#1d4ed8",
+        fontWeight: "600",
+        fontSize: 12,
+        backgroundColor: "#eff6ff",
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 999,
+    },
+    challengeParticipants: {
+        color: "#6b7280",
+        marginBottom: 10,
+        fontSize: 12,
+    },
+    toggleButton: {
+        alignSelf: "flex-start",
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 999,
+        borderWidth: 1,
+    },
+    toggleButtonIn: {
+        backgroundColor: "#2563eb",
+        borderColor: "#2563eb",
+    },
+    toggleButtonInText: {
+        color: "white",
+        fontWeight: "700",
+        fontSize: 13,
+    },
+    toggleButtonOut: {
+        backgroundColor: "white",
+        borderColor: "#d1d5db",
+    },
+    toggleButtonOutText: {
+        color: "#111827",
+        fontWeight: "600",
+        fontSize: 13,
+    },
+    challengeGoal: {
+        color: "#111827",
+        fontWeight: "600",
+        marginBottom: 6,
+    },
+    fieldLabel: {
+        color: "#374151",
+        fontSize: 12,
+        fontWeight: "600",
+        marginBottom: 6,
+        textTransform: "uppercase",
+        letterSpacing: 0.6,
+    },
+    typeSelector: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 6,
+        marginBottom: 12,
+    },
+    typeChip: {
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: "#d1d5db",
+        backgroundColor: "white",
+    },
+    typeChipSelected: {
+        backgroundColor: "#2563eb",
+        borderColor: "#2563eb",
+    },
+    typeChipText: {
+        color: "#111827",
+        fontSize: 12,
+        fontWeight: "600",
+    },
+    typeChipTextSelected: {
+        color: "white",
+        fontSize: 12,
+        fontWeight: "700",
     },
 });
