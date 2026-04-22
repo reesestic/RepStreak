@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import {
     ActivityIndicator,
     Alert,
@@ -66,6 +67,7 @@ export default function Social() {
     const [challengeType, setChallengeType] = useState<ChallengeType>("visits");
     const [creatingChallenge, setCreatingChallenge] = useState(false);
     const [togglingChallengeId, setTogglingChallengeId] = useState<string | null>(null);
+    const [expandedChallengeId, setExpandedChallengeId] = useState<string | null>(null);
 
     const canSubmitCreate = useMemo(() => {
         return squadName.trim().length > 0 && Number(weeklyGoal) > 0;
@@ -95,15 +97,34 @@ export default function Social() {
         void loadChallenges(squad.id);
     }, [squad?.id]);
 
-    async function loadSquad() {
-        if (!user?.id) return;
+    // Refresh squad + challenges every time the tab gains focus (e.g. after
+    // finishing a workout). This is how the auto-updated visits / challenge
+    // progress from POST /workouts/complete shows up without reopening the app.
+    useFocusEffect(
+        useCallback(() => {
+            if (!user?.id) return;
+            void (async () => {
+                const refreshed = await loadSquad();
+                if (refreshed?.id) {
+                    await loadChallenges(refreshed.id);
+                }
+            })();
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [user?.id]),
+    );
+
+    async function loadSquad(): Promise<Squad | null> {
+        if (!user?.id) return null;
         try {
             setErrorMsg("");
             setIsLoading(true);
             const squads = await getUserSquads(user.id);
-            setSquad(squads[0] ?? null);
+            const next = squads[0] ?? null;
+            setSquad(next);
+            return next;
         } catch (error: any) {
             setErrorMsg(error?.message || "Could not load squad. Try again.");
+            return null;
         } finally {
             setIsLoading(false);
         }
@@ -289,8 +310,17 @@ export default function Social() {
                 prev.map((c) => {
                     if (c.id !== challenge.id) return c;
                     const others = c.participants.filter((p) => p.userId !== user.id);
+                    const selfProfileName =
+                        squad?.members.find((m) => m.userId === user.id)?.profileName ?? null;
                     const nextParticipants = nextOptIn
-                        ? [...others, { userId: user.id, progress: 0 } as any]
+                        ? [
+                              ...others,
+                              {
+                                  userId: user.id,
+                                  progress: 0,
+                                  profileName: selfProfileName,
+                              } as any,
+                          ]
                         : others;
                     // Reconstruct a new WeeklyChallenge so methods work with updated list.
                     return new WeeklyChallenge({
@@ -307,6 +337,7 @@ export default function Social() {
                         participants: nextParticipants.map((p) => ({
                             user_id: p.userId,
                             progress: p.progress,
+                            profile_name: p.profileName ?? null,
                         })),
                     });
                 }),
@@ -327,6 +358,17 @@ export default function Social() {
         }
         // Fallback when no profile name is available yet.
         return `${member.userId.slice(0, 8)}...${member.userId.slice(-4)}`;
+    }
+
+    function formatParticipantDisplayName(
+        participant: { userId: string; profileName: string | null },
+        isCurrentUser: boolean,
+    ): string {
+        if (participant.profileName) {
+            return isCurrentUser ? `${participant.profileName} (You)` : participant.profileName;
+        }
+        if (isCurrentUser) return "You";
+        return `${participant.userId.slice(0, 8)}...${participant.userId.slice(-4)}`;
     }
 
     if (isLoading) {
@@ -490,6 +532,8 @@ export default function Social() {
                 challenges.map((challenge) => {
                     const optedIn = challenge.getParticipantStatus(user?.id);
                     const isToggling = togglingChallengeId === challenge.id;
+                    const isExpanded = expandedChallengeId === challenge.id;
+                    const leaderboard = challenge.getLeaderboard();
                     return (
                         <View key={challenge.id} style={styles.challengeCard}>
                             <View style={styles.challengeCardHeader}>
@@ -501,32 +545,109 @@ export default function Social() {
                             <Text style={styles.challengeGoal}>
                                 Target: {challenge.getFormattedGoal()}
                             </Text>
+                            <Text
+                                style={[
+                                    styles.challengeTimeLeft,
+                                    challenge.hasEnded() && styles.challengeTimeLeftEnded,
+                                ]}
+                            >
+                                {challenge.getTimeRemainingLabel()}
+                            </Text>
+                            <Text style={styles.challengeProgressSummary}>
+                                Squad progress: {challenge.formatProgress(challenge.getTotalProgress())} ({challenge.getCompletionPercentage()}%)
+                            </Text>
+
+                            <View style={styles.challengeProgressTrack}>
+                                <View
+                                    style={[
+                                        styles.challengeProgressFill,
+                                        { width: `${challenge.getCompletionPercentage()}%` },
+                                    ]}
+                                />
+                            </View>
+
                             <Text style={styles.challengeParticipants}>
                                 {challenge.participantCount} opted in
                             </Text>
-                            <Pressable
-                                style={[
-                                    styles.toggleButton,
-                                    optedIn ? styles.toggleButtonOut : styles.toggleButtonIn,
-                                    isToggling && styles.disabled,
-                                ]}
-                                disabled={isToggling}
-                                onPress={() => handleToggleParticipation(challenge)}
-                            >
-                                <Text
-                                    style={
-                                        optedIn
-                                            ? styles.toggleButtonOutText
-                                            : styles.toggleButtonInText
+
+                            <View style={styles.challengeActions}>
+                                <Pressable
+                                    style={[
+                                        styles.toggleButton,
+                                        optedIn ? styles.toggleButtonOut : styles.toggleButtonIn,
+                                        isToggling && styles.disabled,
+                                    ]}
+                                    disabled={isToggling}
+                                    onPress={() => handleToggleParticipation(challenge)}
+                                >
+                                    <Text
+                                        style={
+                                            optedIn
+                                                ? styles.toggleButtonOutText
+                                                : styles.toggleButtonInText
+                                        }
+                                    >
+                                        {isToggling
+                                            ? "Working..."
+                                            : optedIn
+                                              ? "Opt Out"
+                                              : "Opt In"}
+                                    </Text>
+                                </Pressable>
+
+                                <Pressable
+                                    style={styles.viewProgressButton}
+                                    onPress={() =>
+                                        setExpandedChallengeId(isExpanded ? null : challenge.id)
                                     }
                                 >
-                                    {isToggling
-                                        ? "Working..."
-                                        : optedIn
-                                          ? "Opt Out"
-                                          : "Opt In"}
-                                </Text>
-                            </Pressable>
+                                    <Text style={styles.viewProgressButtonText}>
+                                        {isExpanded ? "Hide Progress" : "View Progress"}
+                                    </Text>
+                                </Pressable>
+                            </View>
+
+                            {isExpanded && (
+                                <View style={styles.leaderboard}>
+                                    {leaderboard.length === 0 ? (
+                                        <Text style={styles.emptyText}>
+                                            No members opted in yet.
+                                        </Text>
+                                    ) : (
+                                        leaderboard.map((participant, index) => {
+                                            const isCurrentUser =
+                                                !!user?.id && participant.userId === user.id;
+                                            return (
+                                                <View
+                                                    key={participant.userId}
+                                                    style={styles.leaderboardRow}
+                                                >
+                                                    <Text style={styles.leaderboardRank}>
+                                                        {index + 1}
+                                                    </Text>
+                                                    <View style={styles.leaderboardNameColumn}>
+                                                        <Text style={styles.leaderboardName}>
+                                                            {formatParticipantDisplayName(
+                                                                participant,
+                                                                isCurrentUser,
+                                                            )}
+                                                            {index === 0 &&
+                                                            participant.progress > 0
+                                                                ? " 👑"
+                                                                : ""}
+                                                        </Text>
+                                                    </View>
+                                                    <Text style={styles.leaderboardProgress}>
+                                                        {challenge.formatProgress(
+                                                            participant.progress,
+                                                        )}
+                                                    </Text>
+                                                </View>
+                                            );
+                                        })
+                                    )}
+                                </View>
+                            )}
                         </View>
                     );
                 })
@@ -1075,5 +1196,85 @@ const styles = StyleSheet.create({
         color: "white",
         fontSize: 12,
         fontWeight: "700",
+    },
+    challengeTimeLeft: {
+        color: "#1d4ed8",
+        fontSize: 12,
+        fontWeight: "600",
+        marginBottom: 6,
+    },
+    challengeTimeLeftEnded: {
+        color: "#b91c1c",
+    },
+    challengeProgressSummary: {
+        color: "#374151",
+        fontSize: 12,
+        marginBottom: 6,
+    },
+    challengeProgressTrack: {
+        width: "100%",
+        height: 6,
+        backgroundColor: "#e5e7eb",
+        borderRadius: 999,
+        overflow: "hidden",
+        marginBottom: 8,
+    },
+    challengeProgressFill: {
+        height: "100%",
+        backgroundColor: "#2563eb",
+        borderRadius: 999,
+    },
+    challengeActions: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        flexWrap: "wrap",
+    },
+    viewProgressButton: {
+        alignSelf: "flex-start",
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: "#d1d5db",
+        backgroundColor: "white",
+    },
+    viewProgressButtonText: {
+        color: "#111827",
+        fontWeight: "600",
+        fontSize: 13,
+    },
+    leaderboard: {
+        marginTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: "#e5e7eb",
+        paddingTop: 10,
+        gap: 6,
+    },
+    leaderboardRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingVertical: 4,
+    },
+    leaderboardRank: {
+        width: 22,
+        color: "#6b7280",
+        fontWeight: "700",
+        fontSize: 12,
+    },
+    leaderboardNameColumn: {
+        flex: 1,
+        paddingRight: 8,
+    },
+    leaderboardName: {
+        color: "#111827",
+        fontWeight: "600",
+        fontSize: 13,
+    },
+    leaderboardProgress: {
+        color: "#111827",
+        fontWeight: "700",
+        fontSize: 13,
     },
 });

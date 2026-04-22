@@ -3,6 +3,7 @@ export type ChallengeType = "visits" | "volume" | "reps";
 export type ChallengeParticipantRaw = {
     user_id: string;
     progress?: number | null;
+    profile_name?: string | null;
 };
 
 export type WeeklyChallengeRaw = {
@@ -49,10 +50,12 @@ function normalizeChallengeType(value: string | null | undefined): ChallengeType
 export class ChallengeParticipant {
     userId: string;
     progress: number;
+    profileName: string | null;
 
     constructor(raw: ChallengeParticipantRaw) {
         this.userId = String(raw.user_id ?? "");
         this.progress = Number(raw.progress ?? 0);
+        this.profileName = raw.profile_name ?? null;
     }
 }
 
@@ -118,5 +121,64 @@ export class WeeklyChallenge {
     getFormattedGoal(): string {
         const formatted = this.targetGoal.toLocaleString();
         return `${formatted} ${this.getUnitLabel()}`;
+    }
+
+    /** Formats a raw progress value with this challenge's unit (e.g. "5,200 Lbs"). */
+    formatProgress(progress: number): string {
+        return `${Number(progress || 0).toLocaleString()} ${this.getUnitLabel()}`;
+    }
+
+    /** Participants sorted by progress descending (leaderboard order). */
+    getLeaderboard(): ChallengeParticipant[] {
+        return [...this.participants].sort((a, b) => b.progress - a.progress);
+    }
+
+    /**
+     * Milliseconds remaining until this challenge ends.
+     * Falls back to `created_at + duration_days` if `ends_at` is not set.
+     * Returns 0 once the window has passed.
+     */
+    getMillisRemaining(now: Date = new Date()): number {
+        let endsAt: Date | null = null;
+        if (this.endsAt) {
+            const parsed = new Date(this.endsAt);
+            if (!isNaN(parsed.getTime())) endsAt = parsed;
+        }
+        if (!endsAt && this.createdAt) {
+            const start = new Date(this.createdAt);
+            if (!isNaN(start.getTime())) {
+                endsAt = new Date(
+                    start.getTime() + this.durationDays * 24 * 60 * 60 * 1000,
+                );
+            }
+        }
+        if (!endsAt) return 0;
+        return Math.max(0, endsAt.getTime() - now.getTime());
+    }
+
+    /**
+     * Human-readable time-remaining label, e.g.
+     *   "Ends in 5 days"
+     *   "Ends in 12 hours"
+     *   "Ends in 30 minutes"
+     *   "Ended"
+     */
+    getTimeRemainingLabel(now: Date = new Date()): string {
+        const ms = this.getMillisRemaining(now);
+        if (ms <= 0) return "Ended";
+
+        const minutes = Math.floor(ms / (60 * 1000));
+        const hours = Math.floor(ms / (60 * 60 * 1000));
+        const days = Math.floor(ms / (24 * 60 * 60 * 1000));
+
+        if (days >= 1) return `Ends in ${days} ${days === 1 ? "day" : "days"}`;
+        if (hours >= 1) return `Ends in ${hours} ${hours === 1 ? "hour" : "hours"}`;
+        if (minutes >= 1)
+            return `Ends in ${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+        return "Ends in <1 minute";
+    }
+
+    hasEnded(now: Date = new Date()): boolean {
+        return this.getMillisRemaining(now) <= 0;
     }
 }

@@ -297,6 +297,7 @@ class ParticipationRequest(BaseModel):
 class ChallengeParticipantResponse(BaseModel):
     user_id: str
     progress: int
+    profile_name: str | None = None
 
 
 class ChallengeResponse(BaseModel):
@@ -349,15 +350,23 @@ def _fetch_participants_by_challenge(challenge_ids: list[str]) -> dict[str, list
         .in_("challenge_id", challenge_ids)
         .execute()
     )
+    rows = res.data or []
+    name_map = fetch_profile_names([str(r["user_id"]) for r in rows])
+
     out: dict[str, list[dict]] = {}
-    for row in res.data or []:
+    for row in rows:
         cid = str(row["challenge_id"])
+        uid = str(row["user_id"])
         out.setdefault(cid, []).append(
             {
-                "user_id": str(row["user_id"]),
+                "user_id": uid,
                 "progress": int(row.get("progress") or 0),
+                "profile_name": name_map.get(uid) or None,
             }
         )
+    # Sort each challenge's participants by progress descending (leaderboard order).
+    for cid in out:
+        out[cid].sort(key=lambda p: p["progress"], reverse=True)
     return out
 
 
@@ -482,3 +491,139 @@ def set_participation(challenge_id: str, payload: ParticipationRequest):
         .execute()
     )
     return {"challenge_id": challenge_id, "user_id": payload.user_id, "opted_in": False}
+
+
+# --------------------------------------------------------------------------
+# Workout completion hook: auto-updates squad visits + challenge progress
+# --------------------------------------------------------------------------
+
+
+class CompleteWorkoutRequest(BaseModel):
+    user_id: str = Field(min_length=1)
+    visits: int = Field(default=1, ge=0)
+    total_reps: int = Field(default=0, ge=0)
+    total_volume: int = Field(default=0, ge=0)
+
+
+class CompleteWorkoutResponse(BaseModel):
+    user_id: str
+    squads_updated: int
+    challenges_updated: int
+
+
+def _increment_squad_visits(user_id: str, visits: int) -> list[str]:
+    """Increments workouts_this_week on every squad the user belongs to.
+    Returns the list of squad_ids that were updated."""
+    if visits <= 0:
+        return []
+
+    memberships = (
+        supabase.table("squad_members")
+        .select("id,squad_id,workouts_this_week")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    updated_squads: list[str] = []
+    for row in memberships.data or []:
+        current = int(row.get("workouts_this_week") or 0)
+        new_value = current + visits
+        (
+            supabase.table("squad_members")
+            .update({"workouts_this_week": new_value})
+            .eq("id", row["id"])
+            .execute()
+        )
+        updated_squads.append(str(row["squad_id"]))
+    return updated_squads
+
+
+def _delta_for_challenge(
+    challenge_type: str, visits: int, total_reps: int, total_volume: int
+) -> int:
+    if challenge_type == "volume":
+        return max(0, total_volume)
+    if challenge_type == "reps":
+        return max(0, total_reps)
+    # Default / "visits"
+    return max(0, visits)
+
+
+def _increment_challenge_progress(
+    user_id: str, squad_ids: list[str], visits: int, total_reps: int, total_volume: int
+) -> int:
+    """For each active challenge in the given squads where the user is opted in,
+    increments the user's progress by the metric matching challenge_type."""
+    if not squad_ids:
+        return 0
+
+    participation = (
+        supabase.table("challenge_participants")
+        .select("id,challenge_id,progress")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    rows = participation.data or []
+    if not rows:
+        return 0
+
+    challenge_ids = [str(r["challenge_id"]) for r in rows]
+    challenges_res = (
+        supabase.table("squad_challenges")
+        .select("id,squad_id,challenge_type,is_active")
+        .in_("id", challenge_ids)
+        .execute()
+    )
+    challenge_map: dict[str, dict] = {
+        str(c["id"]): c for c in (challenges_res.data or [])
+    }
+
+    updated = 0
+    squad_id_set = {str(s) for s in squad_ids}
+    for row in rows:
+        cid = str(row["challenge_id"])
+        challenge = challenge_map.get(cid)
+        if not challenge:
+            continue
+        if not challenge.get("is_active", True):
+            continue
+        if str(challenge.get("squad_id")) not in squad_id_set:
+            # Safety: only count challenges inside squads the user is still in.
+            continue
+
+        delta = _delta_for_challenge(
+            challenge.get("challenge_type") or "visits",
+            visits,
+            total_reps,
+            total_volume,
+        )
+        if delta <= 0:
+            continue
+
+        new_progress = int(row.get("progress") or 0) + delta
+        (
+            supabase.table("challenge_participants")
+            .update({"progress": new_progress})
+            .eq("id", row["id"])
+            .execute()
+        )
+        updated += 1
+    return updated
+
+
+@app.post("/workouts/complete", response_model=CompleteWorkoutResponse)
+def complete_workout(payload: CompleteWorkoutRequest):
+    """Called when a user finishes logging a workout. Bumps squad visits and
+    advances progress on every active challenge they're opted into."""
+    updated_squads = _increment_squad_visits(payload.user_id, payload.visits)
+    challenges_updated = _increment_challenge_progress(
+        user_id=payload.user_id,
+        squad_ids=updated_squads,
+        visits=payload.visits,
+        total_reps=payload.total_reps,
+        total_volume=payload.total_volume,
+    )
+    return {
+        "user_id": payload.user_id,
+        "squads_updated": len(updated_squads),
+        "challenges_updated": challenges_updated,
+    }
