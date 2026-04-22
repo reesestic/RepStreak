@@ -6,7 +6,6 @@ import { WorkoutSet } from "@/lib/models/WorkoutSet";
 
 export class WorkoutService {
 
-    // 🔥 Generate WorkoutExercises with weight recommendations
     static async generateWithWeights(
         userId: string,
         exercises: Exercise[]
@@ -16,9 +15,8 @@ export class WorkoutService {
                 const weight = await WorkoutService.getRecommendedWeight(userId, ex);
                 const reps = WorkoutService.getDefaultReps(ex);
 
-                // ✅ FIXED: constructor keys now match what WorkoutExercise expects
                 return new WorkoutExercise({
-                    session_id: "",         // filled in when session is saved
+                    session_id: "",
                     exercise_id: ex.id,
                     order_index: index,
                     suggestedWeight: weight,
@@ -31,30 +29,24 @@ export class WorkoutService {
     }
 
     static async saveFromLog(userId: string, log: any[]): Promise<void> {
-
-        //console.log("exercise IDs being saved:", log.map(e => e.exercise.id));
-
         const completedLog = log.filter(entry => entry.sets.length > 0);
 
-        // 1. Create session
         const session = new WorkoutSession({
             user_id: userId,
             started_at: new Date().toISOString(),
             completed: true,
         });
 
-        // 2. Build WorkoutExercises
         const workoutExercises: WorkoutExercise[] = completedLog.map((entry, index) => {
             const we = new WorkoutExercise({
-                session_id: session.workoutId,
+                session_id: "", // will be set later
                 exercise_id: entry.exercise.id,
                 order_index: index,
             });
 
-            // 3. Build Sets
             const sets = entry.sets.map((s: any) =>
                 new WorkoutSet({
-                    workout_exercise_id: we.id,
+                    workout_exercise_id: "", // will be set after insert
                     reps: s.reps,
                     weight: s.weight,
                     rest_seconds: 60,
@@ -66,42 +58,55 @@ export class WorkoutService {
         });
 
         session.workoutExercises = workoutExercises;
-
-        // 4. Mark complete
         session.complete();
 
-        // 5. Save all
         await WorkoutService.saveSession(session);
     }
 
-    // 🔥 Save a completed WorkoutSession + its exercises + sets to Supabase
     static async saveSession(session: WorkoutSession): Promise<void> {
-        const { error: sessionError } = await supabase
+
+        // ✅ 1. Insert session and get REAL ID
+        const { data: sessionData, error: sessionError } = await supabase
             .from("WorkoutSessions")
-            .insert(session.toPlain());
+            .insert(session.toPlain())
+            .select()
+            .single();
 
         if (sessionError) throw sessionError;
 
-        for (const we of session.workoutExercises) {
-            const wePlain = { ...we.toPlain(), session_id: session.workoutId };
+        const sessionId = sessionData.id;
 
-            const { error: weError } = await supabase
+        // ✅ 2. Insert WorkoutExercises with correct session_id
+        for (const we of session.workoutExercises) {
+            const wePlain = {
+                ...we.toPlain(),
+                session_id: sessionId,
+            };
+
+            const { data: weData, error: weError } = await supabase
                 .from("WorkoutExercises")
-                .insert(wePlain);
+                .insert(wePlain)
+                .select()
+                .single();
 
             if (weError) throw weError;
 
+            const workoutExerciseId = weData.id;
+
+            // ✅ 3. Insert Sets with correct workout_exercise_id
             for (const s of we.getSets()) {
                 const { error: setError } = await supabase
                     .from("Sets")
-                    .insert(s.toPlain());
+                    .insert({
+                        ...s.toPlain(),
+                        workout_exercise_id: workoutExerciseId,
+                    });
 
                 if (setError) throw setError;
             }
         }
     }
 
-    // 🔥 Recommend a weight based on history
     private static async getRecommendedWeight(
         userId: string,
         exercise: Exercise
@@ -118,7 +123,6 @@ export class WorkoutService {
 
         if (!history?.length) return WorkoutService.fallbackWeight(exercise);
 
-        // ✅ FIXED: was exercise.muscleGroup / movementCategory — correct fields used
         const matches = history.filter((h: any) => {
             const ex = Array.isArray(h.Exercises) ? h.Exercises[0] : h.Exercises;
             return ex?.primary_muscle === exercise.primary_muscle &&
@@ -136,7 +140,6 @@ export class WorkoutService {
         let weight = avg;
 
         const ex = Array.isArray(best.Exercises) ? best.Exercises[0] : best.Exercises;
-        // ✅ FIXED: was exercise.equipmentType — correct field is equipment_type
         if (ex?.equipment_type !== exercise.equipment_type) {
             if (exercise.equipment_type === "dumbbell") weight *= 0.8;
             if (exercise.equipment_type === "machine")  weight *= 0.9;
@@ -151,12 +154,10 @@ export class WorkoutService {
             chest: 135, back: 135, biceps: 40,
             triceps: 50, shoulders: 40, legs: 185,
         };
-        // ✅ FIXED: was exercise.muscleGroup
         return base[exercise.primary_muscle] ?? 100;
     }
 
     private static getDefaultReps(ex: Exercise): number {
-        // ✅ FIXED: was ex.movementCategory
         const type = ex.movement_category;
         if (type.includes("compound")) return 6;
         if (type.includes("pull")) return 8;
