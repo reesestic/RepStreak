@@ -3,6 +3,7 @@ import { Exercise } from "@/lib/models/Exercise";
 import { WorkoutExercise } from "@/lib/models/WorkoutExercise";
 import { WorkoutSession } from "@/lib/models/WorkoutSession";
 import { WorkoutSet } from "@/lib/models/WorkoutSet";
+import { reportCompletedWorkout } from "@/lib/services/activityService";
 
 export class WorkoutService {
 
@@ -61,6 +62,34 @@ export class WorkoutService {
         session.complete();
 
         await WorkoutService.saveSession(session);
+
+        // Fire-and-forget: notify backend so squad visits + challenge progress
+        // auto-update for every active challenge the user is opted into.
+        if (completedLog.length > 0) {
+            const { totalReps, totalVolume } = WorkoutService.computeWorkoutTotals(completedLog);
+            void reportCompletedWorkout({
+                user_id: userId,
+                visits: 1,
+                total_reps: totalReps,
+                total_volume: Math.round(totalVolume),
+            });
+        }
+    }
+
+    private static computeWorkoutTotals(
+        completedLog: any[],
+    ): { totalReps: number; totalVolume: number } {
+        let totalReps = 0;
+        let totalVolume = 0;
+        for (const entry of completedLog) {
+            for (const s of entry.sets || []) {
+                const reps = Number(s?.reps) || 0;
+                const weight = Number(s?.weight) || 0;
+                totalReps += reps;
+                totalVolume += reps * weight;
+            }
+        }
+        return { totalReps, totalVolume };
     }
 
     static async saveSession(session: WorkoutSession): Promise<void> {
