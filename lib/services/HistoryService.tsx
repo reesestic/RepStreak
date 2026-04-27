@@ -55,10 +55,6 @@ export class HistoryService {
     // still count as "done".
 
     static async getExerciseHistory(userId: string): Promise<ExerciseSummary[]> {
-        // Step 1: get all WorkoutExercises rows with exercise info + sets
-        // We join WorkoutSessions only to filter by user — but we also want
-        // rows where session_id IS null (those belong to in-progress workouts).
-        // So we do two queries and merge:
 
         // Query A: rows WITH a session (join to verify user ownership)
         const { data: withSession, error: errA } = await supabase
@@ -73,12 +69,6 @@ export class HistoryService {
             .eq("WorkoutSessions.user_id", userId);
 
         if (errA) throw errA;
-
-        // Query B: rows with NO session — these are "orphan" rows from
-        // workouts that were generated but session wasn't written yet.
-        // We can't verify user ownership via session, so we skip these
-        // for now to avoid showing other users' data.
-        // If you want to include them, add a user_id column to WorkoutExercises.
 
         // Group by exercise_id
         const map = new Map<string, {

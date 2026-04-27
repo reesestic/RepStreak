@@ -5,7 +5,6 @@ export default function WorkoutComplete({ log }: any) {
     const router = useRouter();
 
     const completed = log.filter((e: any) => e.sets.length > 0);
-    const skipped   = log.filter((e: any) => e.sets.length === 0);
 
     function goHome() {
         router.replace("/");

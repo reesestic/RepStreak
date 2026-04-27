@@ -11,7 +11,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useState, useEffect } from "react";
 import { Profile } from "@/lib/models/Profile";
 import { ProfileService } from "@/lib/services/profileService";
-import { SPLITS, SplitType } from "@/lib/splits";
+import { SPLITS, SplitType } from "@/lib/utils/splits";
+import { expandMuscles } from "@/lib/utils/muscles";
 
 export default function ProfileScreen() {
     const { user, signOut } = useAuth();
@@ -22,7 +23,6 @@ export default function ProfileScreen() {
     const [showDayModal, setShowDayModal] = useState(false);
     const [showPersonalModal, setShowPersonalModal] = useState(false);
 
-    // 🔥 LOAD PROFILE (creates row + random username if missing)
     useEffect(() => {
         if (!user?.id) return;
         async function load() {
@@ -39,7 +39,6 @@ export default function ProfileScreen() {
         return profile;
     }
 
-    // 🔥 CENTRALIZED UPDATE
     function updateProfile(update: Partial<Profile>) {
         const p = requireProfile();
         const updated = new Profile(p.toPlain());
@@ -47,13 +46,11 @@ export default function ProfileScreen() {
         setProfile(updated);
     }
 
-    // 🔥 SAVE
     async function saveProfile() {
         const p = requireProfile();
         await ProfileService.updateProfile(p);
     }
 
-    // 🔥 SAVE SPLIT
     async function saveSplit(newSplit: SplitType, newIndex: number) {
         const updated = new Profile(requireProfile().toPlain());
 
@@ -68,7 +65,6 @@ export default function ProfileScreen() {
         setShowDayModal(false);
     }
 
-    // 🔥 SAVE PERSONAL DATA
     async function savePersonal() {
         await saveProfile();
         setShowPersonalModal(false);
@@ -82,7 +78,7 @@ export default function ProfileScreen() {
         return <Text>Loading...</Text>;
     }
 
-    const p = requireProfile(); // 🔥 single safe reference
+    const p = requireProfile();
     const split = p.workoutSplit ? SPLITS[p.workoutSplit] : null;
 
     return (
@@ -107,9 +103,21 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
 
                 {split && (
-                    <Text style={styles.sub}>
-                        Current Day: {p.getNextWorkoutDay(split.length)}
-                    </Text>
+                    (() => {
+                        const dayIndex = (p.splitIndex ?? 0) % split.length;
+
+                        const muscles = expandMuscles([...split[dayIndex]]);
+
+                        const label = muscles
+                            .map(m => m[0].toUpperCase() + m.slice(1))
+                            .join(" • ");
+
+                        return (
+                            <Text style={styles.sub}>
+                                Current Day: {dayIndex + 1} ({label})
+                            </Text>
+                        );
+                    })()
                 )}
             </View>
 
@@ -155,14 +163,23 @@ export default function ProfileScreen() {
                     <Text>Select Starting Day</Text>
 
                     {p.workoutSplit &&
-                        SPLITS[p.workoutSplit as SplitType].map((_, i) => (
-                            <TouchableOpacity
-                                key={i}
-                                onPress={() => saveSplit(p.workoutSplit as SplitType, i)}
-                            >
-                                <Text style={styles.option}>Day {i + 1}</Text>
-                            </TouchableOpacity>
-                        ))}
+                        SPLITS[p.workoutSplit as SplitType].map((day, i) => {
+                            const muscles = expandMuscles([...day]);
+                            const label = muscles
+                                .map(m => m[0].toUpperCase() + m.slice(1))
+                                .join(" • ");
+
+                            return (
+                                <TouchableOpacity
+                                    key={i}
+                                    onPress={() => saveSplit(p.workoutSplit as SplitType, i)}
+                                >
+                                    <Text style={styles.option}>
+                                        Day {i + 1}: {label}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
                 </View>
             </Modal>
 

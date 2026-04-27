@@ -1,71 +1,76 @@
-import { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { View, Text, Button } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter , useFocusEffect } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
-import { ExerciseService } from "@/lib/services/ExerciseService";
-import { GenerateService } from "@/lib/services/GenerateService";
 import { ProfileService } from "@/lib/services/profileService";
+import { SPLITS, SplitType } from "@/lib/utils/splits";
+
 
 export default function Home() {
     const router = useRouter();
     const { user } = useAuth();
     const [username, setUsername] = useState("");
+    const [todayMuscles, setTodayMuscles] = useState<string[] | null>(null);
 
-    useEffect(() => {
-        if (!user?.id) return;
-        let cancelled = false;
-        ProfileService.ensureProfile(user.id).then((p) => {
-            if (!cancelled) {
+    useFocusEffect(
+        React.useCallback(() => {
+            if (!user?.id) return;
+
+            let cancelled = false;
+
+            async function load() {
+                const p = await ProfileService.ensureProfile(user.id);
+                if (cancelled) return;
+
                 setUsername(p.username?.trim() || "Athlete");
+
+                if (p.workoutSplit && p.workoutSplit in SPLITS) {
+                    const splitDays = SPLITS[p.workoutSplit as SplitType];
+                    const index = (p.splitIndex ?? 0) % splitDays.length;
+                    setTodayMuscles([...splitDays[index]] as string[]);
+                }
             }
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [user?.id]);
 
-    async function handleStartWorkout() {
-        const muscles = ["back", "biceps"];
-        const time = 45;
+            load();
 
-        const exercises = await ExerciseService.getByMuscles(muscles);
-        const workout = GenerateService.generateWorkout({ exercises, muscles, timeMinutes: time });
+            return () => {
+                cancelled = true;
+            };
+        }, [user?.id])
+    );
 
-        router.push({
-            pathname: "/generate",
-            params: {
-                workout: JSON.stringify(workout.map(e => e.toPlain())),
-                allExercises: JSON.stringify(exercises.map(e => e.toPlain())),
-            },
-        });
+    function handleStartWorkout() {
+        router.push("/constraints");
     }
+
+    const todayLabel = todayMuscles
+        ? todayMuscles.map(m => m[0].toUpperCase() + m.slice(1)).join(" & ")
+        : null;
 
     return (
         <View style={{ flex: 1, padding: 20, justifyContent: "center" }}>
-
-            {/* 👋 Greeting */}
             <Text style={{ fontSize: 24, fontWeight: "bold" }}>
                 Welcome back{username ? `, ${username}` : ""} 👋
             </Text>
-
-            {/* 🔥 Streak */}
             <Text style={{ marginTop: 10, fontSize: 16 }}>
-                🔥 Let’s continue your 5-day streak!
+                🔥 Let&#39;s continue your 5-day streak!
             </Text>
-
-            {/* 🏋️ Today's workout */}
             <Text style={{ marginTop: 20, fontSize: 18 }}>
-                Today’s Workout:
+                Today&#39;s Workout:
             </Text>
-            <Text style={{ fontSize: 22, fontWeight: "600" }}>
-                Chest & Back
-            </Text>
-
-            {/* ▶️ Start button */}
+            {todayLabel ? (
+                <Text style={{ fontSize: 22, fontWeight: "600" }}>
+                    {todayLabel}
+                </Text>
+            ) : (
+                <Text style={{ fontSize: 16, color: "#888", marginTop: 4 }}>
+                    Loading workout split...
+                </Text>
+            )}
             <View style={{ marginTop: 30 }}>
                 <Button title="Start Workout" onPress={handleStartWorkout} />
             </View>
-
         </View>
     );
 }
+

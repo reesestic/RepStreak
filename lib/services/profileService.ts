@@ -13,13 +13,13 @@ export class ProfileService {
 
         if (error || !data) return null;
 
-        return new Profile(data); // 🔥 normalization
+        return new Profile(data);
     }
 
     static async updateProfile(profile: Profile) {
         await supabase
             .from("Profiles")
-            .upsert(profile.toPlain()); // 🔥 convert back
+            .upsert(profile.toPlain());
     }
 
     /**
