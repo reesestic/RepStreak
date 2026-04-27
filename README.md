@@ -1,4 +1,4 @@
-# 🔥 RepStreak
+# RepStreak
 
 > Build the habit. Keep the streak. Train with your squad.
 
@@ -6,26 +6,26 @@ RepStreak is a cross-platform fitness app that turns your workouts into a
 streak you can see, share, and compete on. Log a session, watch your streak
 climb, and chase weekly challenges with friends — all from your phone.
 
-## 🌟 Highlights
+## Highlights
 
-- 🏋️ **Smart workouts** — generate a session from the muscles you want to
+- **Smart workouts** — generate a session from the muscles you want to
   hit and the time you have.
-- 🔥 **Daily streaks** — your home screen shows your real streak and
-  instantly flips to "Workout logged for today ✅" once you finish.
-- 👥 **Squads** — create or join a squad with an invite code and watch your
+- **Daily streaks** — your home screen shows your real streak and
+  instantly flips to "Workout logged for today" once you finish.
+- **Squads** — create or join a squad with an invite code and watch your
   team crush a shared weekly visits goal.
-- 🏆 **Challenges** — any admin can spin up a weekly challenge tracking
+- **Challenges** — any admin can spin up a weekly challenge tracking
   *visits*, *volume (lbs)*, or *reps*, complete with an opt-in leaderboard.
-- 📈 **History & PRs** — browse every exercise you've done and see your
+- **History & PRs** — browse every exercise you've done and see your
   all-time best weight per lift.
-- 📱 **Runs everywhere** — iOS, Android, and web out of the box (Expo).
+- **Runs everywhere** — iOS, Android, and web out of the box (Expo).
 
-## ℹ️ Overview
+## Overview
 
 RepStreak is split into two pieces that talk to a managed Postgres:
 
 ```
-📱 Expo / React Native app  ──►  ⚡ FastAPI backend  ──►  🐘 Supabase (Postgres + Auth)
+Expo / React Native app  ──►  FastAPI backend  ──►  Supabase (Postgres + Auth)
 ```
 
 - The **mobile app** handles auth, workout logging, history, and the UI for
@@ -37,18 +37,18 @@ RepStreak is split into two pieces that talk to a managed Postgres:
 - **Supabase** stores everything — users, profiles, exercises, sessions,
   squads, challenges, and participation.
 
-### 👷 Who made this?
+### Who made this?
 
 RepStreak was built by a CS 411 team at Boston University. See
 [`AUTHORS`](#-authors) below.
 
-## 🚀 Usage
+## Usage
 
 Once you're signed in, the app walks itself:
 
 1. **Home** — shows your streak, weekly workout count, and today's workout.
    If you've already logged a session today, the card flips green with
-   "Workout logged for today ✅".
+   "Workout logged for today".
 2. **Generate** — pick muscles + available time, and the app builds a
    routine for you. Swap exercises, then tap **Start Workout**.
 3. **Workout** — log sets and reps live. When you save, your squad's
@@ -57,7 +57,7 @@ Once you're signed in, the app walks itself:
    challenge (visits / volume / reps). Opt in to join the leaderboard.
 5. **Profile** — edit your display username and personal data.
 
-## ⬇️ Installation
+## Installation
 
 RepStreak has three parts to run locally: a Supabase project, the FastAPI
 backend, and the Expo app.
@@ -113,21 +113,26 @@ npx expo start
 Scan the QR code with Expo Go, press `i` for iOS simulator, `a` for
 Android, or `w` for web.
 
-## 🗂️ Project layout
+## Project layout
 
 ```
 RepStreak/
-├── app/              Expo Router screens (tabs, workout, generate, login)
-├── lib/
-│   ├── models/       Domain classes (Squad, WeeklyChallenge, WorkoutSession, …)
-│   ├── services/     Data access (DashboardService, squadService, …)
-│   └── supabase.ts   Supabase client
-├── context/          React context providers (Auth, …)
-├── backend/          FastAPI app + SQL schema files
-└── types/            Shared TypeScript types
+├── app/                    Expo Router screens and routes
+├── backend/                FastAPI backend
+├── components/             Reusable React Native UI components
+│   ├── history/            Components for workout history and progress views
+│   └── workout/            Components for workout generation, logging, and sessions
+├── context/                React context providers
+├── lib/                    Shared frontend logic and app utilities
+│   ├── models/             Domain classes
+│   ├── services/           Data access and API/service logic
+│   ├── utils/              Util type files
+│   └── supabase.ts         Supabase config
+├── scripts/                Project scripts
+└── types/                  TypeScript type files
 ```
 
-## 🧪 Key features, under the hood
+## Key features, under the hood
 
 - **Streak engine** — `lib/services/DashboardService.ts` pulls completed
   sessions, keys them by local date, and walks consecutive days backward
@@ -141,7 +146,7 @@ RepStreak/
   (`getFormattedGoal()`, `getTimeRemainingLabel()`, `getLeaderboard()`) so
   screens stay thin.
 
-## 👥 Authors
+## Authors
 
 Built by the RepStreak team for CS 411 @ BU, Spring 2026.
 
@@ -150,7 +155,7 @@ Built by the RepStreak team for CS 411 @ BU, Spring 2026.
 - William Spannuth — [wcs89@bu.edu](mailto:wcs89@bu.edu)
 - Reese Stichter — [rsticht@bu.edu](mailto:rsticht@bu.edu)
 
-## 📖 Further reading
+## Further reading
 
 - [Expo docs](https://docs.expo.dev/)
 - [FastAPI docs](https://fastapi.tiangolo.com/)
