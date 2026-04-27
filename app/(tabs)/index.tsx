@@ -1,13 +1,12 @@
 import React, { useState, useCallback } from "react";
 import {
-    View,
-    Text,
-    Button,
     ActivityIndicator,
     Pressable,
     StyleSheet,
+    Text,
+    View,
 } from "react-native";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 
 import { useAuth } from "@/context/AuthContext";
 import { ProfileService } from "@/lib/services/profileService";
@@ -29,7 +28,6 @@ export default function Home() {
         if (!user?.id) return;
 
         const p = await ProfileService.ensureProfile(user.id);
-
         setUsername(p.username?.trim() || "Athlete");
 
         if (p.workoutSplit && p.workoutSplit in SPLITS) {
@@ -42,7 +40,6 @@ export default function Home() {
     // 🔥 Load dashboard stats
     const loadStats = useCallback(async () => {
         if (!user?.id) return;
-
         try {
             setLoading(true);
             const next = await DashboardService.getStats(user.id);
@@ -55,7 +52,6 @@ export default function Home() {
         }
     }, [user?.id]);
 
-    // 🔥 Run both when screen focuses
     useFocusEffect(
         useCallback(() => {
             loadProfile();
@@ -63,18 +59,18 @@ export default function Home() {
         }, [loadProfile, loadStats])
     );
 
-    // 🔥 Navigation (CORRECT)
+    // 🔥 ALWAYS go to constraints
     function handleStartWorkout() {
         router.push("/constraints");
     }
 
-    const todayLabel = todayMuscles
-        ? todayMuscles.map(m => m[0].toUpperCase() + m.slice(1)).join(" & ")
-        : null;
-
     const streak = stats?.currentStreak ?? 0;
     const workoutsThisWeek = stats?.workoutsThisWeek ?? 0;
     const doneToday = !!stats?.workoutDoneToday;
+
+    const todayLabel = todayMuscles
+        ? todayMuscles.map(m => m[0].toUpperCase() + m.slice(1)).join(" & ")
+        : "Loading...";
 
     return (
         <View style={styles.container}>
@@ -89,14 +85,19 @@ export default function Home() {
                     {/* 🔥 Streak */}
                     <View style={styles.streakCard}>
                         <Text style={styles.streakFlame}>🔥</Text>
-                        <View style={{ flex: 1 }}>
+                        <View style={styles.streakTextColumn}>
                             <Text style={styles.streakValue}>
-                                {streak} {streak === 1 ? "day" : "days"}
+                                {streak}{" "}
+                                <Text style={styles.streakUnit}>
+                                    {streak === 1 ? "day" : "days"}
+                                </Text>
                             </Text>
                             <Text style={styles.streakLabel}>
-                                {doneToday
-                                    ? "Streak extended!"
-                                    : "Work out today to keep it alive"}
+                                {streak === 0
+                                    ? "Start your streak today"
+                                    : doneToday
+                                        ? "Streak extended for today!"
+                                        : "Work out today to keep it alive"}
                             </Text>
                         </View>
                     </View>
@@ -105,29 +106,59 @@ export default function Home() {
                     <View style={styles.statsRow}>
                         <View style={styles.statCard}>
                             <Text style={styles.statValue}>{workoutsThisWeek}</Text>
-                            <Text>This Week</Text>
+                            <Text style={styles.statLabel}>This Week</Text>
                         </View>
                         <View style={styles.statCard}>
                             <Text style={styles.statValue}>
                                 {stats?.totalWorkouts ?? 0}
                             </Text>
-                            <Text>Total</Text>
+                            <Text style={styles.statLabel}>Total</Text>
                         </View>
                     </View>
 
                     {/* 🔥 Today */}
-                    <View style={styles.todayCard}>
-                        <Text style={styles.todayLabel}>Today's Workout</Text>
-                        <Text style={styles.todayTitle}>
-                            {todayLabel ?? "Loading..."}
-                        </Text>
+                    {doneToday ? (
+                        <View style={styles.doneCard}>
+                            <Text style={styles.doneIcon}>✅</Text>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.doneTitle}>
+                                    Workout logged for today
+                                </Text>
+                                <Text style={styles.doneSubtitle}>
+                                    {stats?.lastWorkoutAt
+                                        ? `Finished at ${stats.lastWorkoutAt.toLocaleTimeString([], {
+                                            hour: "numeric",
+                                            minute: "2-digit",
+                                        })}`
+                                        : "Great job! Rest up."}
+                                </Text>
+                            </View>
 
-                        <Pressable style={styles.primaryButton} onPress={handleStartWorkout}>
-                            <Text style={{ color: "white", fontWeight: "700" }}>
-                                Start Workout
-                            </Text>
-                        </Pressable>
-                    </View>
+                            {/* still goes to constraints */}
+                            <Pressable
+                                style={styles.secondaryButton}
+                                onPress={handleStartWorkout}
+                            >
+                                <Text style={styles.secondaryButtonText}>
+                                    Extra Session
+                                </Text>
+                            </Pressable>
+                        </View>
+                    ) : (
+                        <View style={styles.todayCard}>
+                            <Text style={styles.todayLabel}>Today's Workout</Text>
+                            <Text style={styles.todayTitle}>{todayLabel}</Text>
+
+                            <Pressable
+                                style={styles.primaryButton}
+                                onPress={handleStartWorkout}
+                            >
+                                <Text style={styles.primaryButtonText}>
+                                    Start Workout
+                                </Text>
+                            </Pressable>
+                        </View>
+                    )}
                 </>
             )}
         </View>
@@ -151,24 +182,16 @@ const styles = StyleSheet.create({
         padding: 16,
         flexDirection: "row",
         alignItems: "center",
+        gap: 14,
         marginBottom: 12,
     },
-    streakFlame: {
-        fontSize: 36,
-        marginRight: 12,
-    },
-    streakValue: {
-        fontSize: 22,
-        fontWeight: "800",
-    },
-    streakLabel: {
-        color: "#6b7280",
-    },
-    statsRow: {
-        flexDirection: "row",
-        gap: 10,
-        marginBottom: 12,
-    },
+    streakFlame: { fontSize: 36 },
+    streakTextColumn: { flex: 1 },
+    streakValue: { fontSize: 28, fontWeight: "800" },
+    streakUnit: { fontSize: 16, fontWeight: "600", color: "#6b7280" },
+    streakLabel: { color: "#6b7280", marginTop: 2 },
+
+    statsRow: { flexDirection: "row", gap: 10, marginBottom: 12 },
     statCard: {
         flex: 1,
         backgroundColor: "white",
@@ -176,10 +199,29 @@ const styles = StyleSheet.create({
         padding: 14,
         alignItems: "center",
     },
-    statValue: {
-        fontSize: 22,
-        fontWeight: "800",
+    statValue: { fontSize: 22, fontWeight: "800" },
+    statLabel: {
+        color: "#6b7280",
+        marginTop: 2,
+        fontSize: 12,
+        textTransform: "uppercase",
+        letterSpacing: 0.6,
     },
+
+    doneCard: {
+        backgroundColor: "#ecfdf5",
+        borderRadius: 12,
+        padding: 16,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        borderWidth: 1,
+        borderColor: "#a7f3d0",
+    },
+    doneIcon: { fontSize: 28 },
+    doneTitle: { fontWeight: "700", color: "#065f46" },
+    doneSubtitle: { color: "#047857", fontSize: 12 },
+
     todayCard: {
         backgroundColor: "white",
         borderRadius: 12,
@@ -187,17 +229,31 @@ const styles = StyleSheet.create({
     },
     todayLabel: {
         color: "#6b7280",
+        fontSize: 12,
+        textTransform: "uppercase",
         marginBottom: 4,
     },
-    todayTitle: {
-        fontSize: 20,
-        fontWeight: "700",
-        marginBottom: 12,
-    },
+    todayTitle: { fontSize: 22, fontWeight: "700", marginBottom: 16 },
+
     primaryButton: {
         backgroundColor: "#2563eb",
-        padding: 12,
+        paddingVertical: 12,
         borderRadius: 10,
         alignItems: "center",
+    },
+    primaryButtonText: { color: "white", fontWeight: "700" },
+
+    secondaryButton: {
+        backgroundColor: "white",
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: "#a7f3d0",
+    },
+    secondaryButtonText: {
+        color: "#065f46",
+        fontWeight: "700",
+        fontSize: 12,
     },
 });

@@ -11,6 +11,7 @@ export type SquadRaw = {
     invite_code: string;
     weekly_goal: number;
     current_streak: number;
+    created_by?: string | null;
     members: SquadMemberRaw[];
 };
 
@@ -34,6 +35,7 @@ export class Squad {
     inviteCode: string;
     weeklyGoal: number;
     currentStreak: number;
+    createdBy: string | null;
     members: SquadMember[];
 
     constructor(raw: SquadRaw) {
@@ -42,7 +44,23 @@ export class Squad {
         this.inviteCode = raw.invite_code ?? "";
         this.weeklyGoal = Number(raw.weekly_goal ?? 0);
         this.currentStreak = Number(raw.current_streak ?? 0);
+        this.createdBy = raw.created_by ? String(raw.created_by) : null;
         this.members = Array.isArray(raw.members) ? raw.members.map((m) => new SquadMember(m)) : [];
+    }
+
+    isAdmin(userId: string | null | undefined): boolean {
+        if (!userId || !this.createdBy) return false;
+        return this.createdBy === userId;
+    }
+
+    /** Unit label for the base squad weekly goal (UC3). Squads track visits. */
+    getGoalLabel(): string {
+        return "Visits";
+    }
+
+    /** Formatted squad weekly goal, e.g. "12 / 15 Visits". */
+    getFormattedWeeklyGoal(): string {
+        return `${this.totalSquadWorkouts} / ${this.weeklyGoal} ${this.getGoalLabel()}`;
     }
 
     get totalSquadWorkouts(): number {
