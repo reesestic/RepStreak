@@ -1,4 +1,4 @@
-import { SplitType } from "@/lib/splits";
+import { SplitType } from "@/lib/utils/splits";
 
 
 export class Profile {

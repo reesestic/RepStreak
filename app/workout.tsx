@@ -5,16 +5,16 @@ import WorkoutComplete from "../components/workout/WorkoutComplete";
 import { useLocalSearchParams } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { WorkoutService } from "@/lib/services/WorkoutService";
+import {SPLITS, SplitType} from "@/lib/utils/splits";
 
 export default function Workout() {
     const { workout } = useLocalSearchParams();
 
-    // 🔥 FIX: GUARANTEE CLEAN STRUCTURE
     const parsedWorkout = workout
         ? JSON.parse(workout as string).map((we: any, i: number) => ({
             id: we.id ?? `temp-${i}`,
             exercise_id: we.exercise_id,
-            name: we.name ?? "Exercise", // ✅ CRITICAL FIX
+            name: we.name ?? "Exercise",
             targetReps: we.suggestedReps ?? 10,
             targetSets: we.suggestedSets ?? 3,
             recommendedWeight: we.suggestedWeight ?? null,
@@ -31,12 +31,25 @@ export default function Workout() {
         if (!complete) return;
 
         async function save() {
-            const {
-                data: { user },
-            } = await supabase.auth.getUser();
-
+            const { data: { user } } = await supabase.auth.getUser();
             try {
                 await WorkoutService.saveFromLog(user!.id, log);
+
+                // Increment split index
+                const { data: profile } = await supabase
+                    .from("Profiles")
+                    .select("split_index, workout_split")
+                    .eq("id", user!.id)
+                    .single();
+
+                if (profile?.workout_split && profile.workout_split in SPLITS) {
+                    const splitLength = SPLITS[profile.workout_split as SplitType].length;
+                    const nextIndex = ((profile.split_index ?? 0) + 1) % splitLength;
+                    await supabase
+                        .from("Profiles")
+                        .update({ split_index: nextIndex })
+                        .eq("id", user!.id);
+                }
             } catch (err) {
                 console.error(err);
             }
@@ -90,7 +103,6 @@ export default function Workout() {
         }
     }
 
-    // 🔥 FIXED REORDER (preserves order correctly)
     function handleReorder(reordered: any[]) {
         const before = exercises.slice(0, index + 1);
         setExercises([...before, ...reordered]);
@@ -106,7 +118,7 @@ export default function Workout() {
                 key={current.id ?? index}
                 exercise={current}
                 nextExerciseName={next?.name}
-                upcomingExercises={exercises.slice(index + 1)} // ✅ THIS NOW WORKS
+                upcomingExercises={exercises.slice(index + 1)}
                 onReorder={handleReorder}
                 onFinish={handleFinish}
                 onSkip={handleSkip}

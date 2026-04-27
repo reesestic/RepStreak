@@ -1,13 +1,13 @@
 export const SPLITS = {
     "Push / Pull / Legs": [
-        ["chest", "shoulders", "triceps"],
-        ["back", "biceps"],
-        ["quads", "hamstrings", "glutes"],
+        ["push"],
+        ["pull"],
+        ["legs"],
     ],
 
     "Upper / Lower": [
-        ["chest", "back", "shoulders", "biceps", "triceps"],
-        ["quads", "hamstrings", "glutes"],
+        ["upper"],
+        ["lower"],
     ],
 
     Arnold: [
