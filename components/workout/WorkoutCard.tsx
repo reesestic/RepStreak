@@ -1,22 +1,21 @@
-import { useState, useRef, useEffect } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { useEffect, useRef, useState } from "react";
 import {
-    View,
+    Image,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    StyleSheet,
-    Image,
-    Keyboard,
-    TouchableWithoutFeedback,
-    KeyboardAvoidingView,
-    Platform,
+    View
 } from "react-native";
 import Animated, {
-    useSharedValue,
     useAnimatedStyle,
+    useSharedValue,
     withTiming,
 } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
 
 const colors = {
     bg: "#05070A",
@@ -26,6 +25,7 @@ const colors = {
     textSecondary: "#94A3B8",
     border: "#1E293B",
 };
+
 
 export default function WorkoutCard({
                                         exercise,
@@ -50,6 +50,17 @@ export default function WorkoutCard({
     const [showReorder, setShowReorder] = useState(false);
     const [reorderList, setReorderList] = useState<any[]>(upcomingExercises);
 
+    const [elapsed, setElapsed] = useState(0);
+
+    useEffect(() => {
+        if (!running) return;
+        setElapsed(0);
+        const interval = setInterval(() => {
+            setElapsed(prev => prev + 1);
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [running]);
+
 
     const repsRef = useRef<TextInput>(null);
     const weightRef = useRef<TextInput>(null);
@@ -67,10 +78,6 @@ export default function WorkoutCard({
         const s = sec % 60;
         return `${m}:${s.toString().padStart(2, "0")}`;
     }
-
-    const elapsed = startTime
-        ? Math.floor((Date.now() - startTime) / 1000)
-        : 0;
 
     function validateSet(weight: number, reps: number) {
         if (weight === 0 && reps === 0) return "Invalid values";
@@ -143,7 +150,6 @@ export default function WorkoutCard({
             style={{ flex: 1 }}
             behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
                 <Animated.View style={[styles.card, animatedStyle]}>
 
                     {/* TOP */}
@@ -275,7 +281,6 @@ export default function WorkoutCard({
                     </TouchableOpacity>
 
                 </Animated.View>
-            </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
     );
 }
