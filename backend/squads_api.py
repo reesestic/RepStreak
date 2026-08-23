@@ -17,6 +17,11 @@ ChallengeType = Literal["visits", "volume", "reps"]
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(_PROJECT_ROOT / ".env")
 
+print("Project root:", _PROJECT_ROOT)
+print("Env exists:", (_PROJECT_ROOT / ".env").exists())
+print("SUPABASE_URL:", os.getenv("SUPABASE_URL"))
+print("SERVICE KEY FOUND:", bool(os.getenv("SUPABASE_SERVICE_ROLE_KEY")))
+
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")

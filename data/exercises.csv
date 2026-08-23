@@ -1,0 +1,80 @@
+name,primary_muscle,secondary_muscles,movement_category,equipment_type,difficulty,is_compound
+Dumbbell Shrugs,traps,"""{}""",raise,dumbbell,beginner,FALSE
+Standing Calf Raise,calves,"""{}""",raise,machine,beginner,FALSE
+Dumbbell Wrist Curls,forearms,"""{}""",curl,dumbbell,beginner,FALSE
+Cable Crunch,core,"""{}""",flexion,cable,intermediate,FALSE
+Machine Pec Dec,chest,"""{front delts}""",fly,machine,beginner,FALSE
+Cable Chest Fly,chest,"""{front delts}""",fly,cable,intermediate,FALSE
+Bench Press,chest,"""{triceps,front delts}""",press,barbell,intermediate,TRUE
+Machine Bench Press,chest,"""{triceps,front delts}""",press,machine,beginner,TRUE
+Reverse Pec Deck,rear delts,"""{traps}""",fly,machine,beginner,FALSE
+Dips,triceps,"""{chest,front delts}""",press,bodyweight,intermediate,TRUE
+Hip Thrust,glutes,"""{hamstrings}""",hinge,barbell,intermediate,TRUE
+Bayesian Cable Curl,biceps,"""{}""",curl,cable,beginner,FALSE
+Dumbbell Curl,biceps,"""{}""",curl,dumbbell,beginner,FALSE
+Deadlift,back,"""{glutes,hamstrings,traps}""",hinge,barbell,intermediate,TRUE
+Romanian Deadlift,hamstrings,"""{glutes,back}""",hinge,barbell,intermediate,TRUE
+Barbell Overhead Press,shoulders,"""{traps,triceps}""",press,barbell,intermediate,TRUE
+Dummbell Lunges,quads,"""{glutes,hamstrings}""",lunge,dumbbell,beginner,TRUE
+Lunges,quads,"""{glutes,hamstrings}""",lunge,bodyweight,beginner,TRUE
+Bulgarian Split Squats,quads,"""{glutes,hamstrings}""",lunge,dumbbell,intermediate,TRUE
+Incline Bench Press,chest,"""{triceps,front delts}""",press,barbell,intermediate,TRUE
+Lying Leg Curl,hamstrings,"""{}""",curl,machine,beginner,FALSE
+Seated Leg Curl,hamstrings,"""{}""",curl,machine,beginner,FALSE
+Overhead Cable Triceps Extension,triceps,"""{}""",extension,cable,beginner,FALSE
+Pull-up,back,"""{biceps}""",vertical_pull,bodyweight,intermediate,TRUE
+Preacher Curl,biceps,"""{}""",curl,machine,beginner,FALSE
+Lateral Raise,shoulders,"""{traps}""",raise,dumbbell,beginner,FALSE
+Squat,quads,"""{glutes,hamstrings}""",squat,barbell,intermediate,TRUE
+Leg Extension,quads,"""{}""",extension,machine,beginner,FALSE
+Hack Squat,quads,"""{glutes,hamstrings}""",squat,machine,intermediate,TRUE
+Pendulum Squat,quads,"""{glutes,hamstrings}""",squat,machine,advanced,TRUE
+Lat Pulldown,back,"""{biceps}""",vertical_pull,machine,beginner,TRUE
+Single Arm Kneeling Cable Lat Pulldown,back,"""{biceps}""",vertical_pull,cable,intermediate,FALSE
+Hammer Curl,biceps,"""{forearms}""",curl,dumbbell,beginner,FALSE
+Close Grip Bench Press,triceps,"""{chest,front delts}""",press,barbell,intermediate,TRUE
+Tricep Cable Pushdown,triceps,"""{}""",extension,cable,beginner,FALSE
+Face Pulls,rear delts,"""{traps}""",horizontal_pull,cable,beginner,FALSE
+Hip Abductor,glutes,"""{}""",raise,machine,beginner,FALSE
+Hip Adductor,quads,"""{}""",raise,machine,beginner,FALSE
+Cable Rope Crunch,core,"""{}""",flexion,cable,beginner,FALSE
+Leg Raises,core,"""{}""",flexion,bodyweight,beginner,FALSE
+Cable Woodchoppers,core,"""{}""",flexion,cable,intermediate,FALSE
+Glute Kickback,glutes,"""{hamstrings}""",extension,cable,beginner,FALSE
+Step Ups,quads,"""{glutes,hamstrings}""",lunge,dumbbell,beginner,TRUE
+Goblet Squat,quads,"""{glutes,hamstrings}""",squat,dumbbell,beginner,TRUE
+Seated Cable Row,back,"""{biceps,rear delts}""",horizontal_pull,cable,beginner,TRUE
+Chest Supported Row,back,"""{biceps,rear delts}""",horizontal_pull,dumbbell,intermediate,TRUE
+T-Bar Row,back,"""{biceps,rear delts}""",horizontal_pull,barbell,intermediate,TRUE
+Chin-up,back,"""{biceps}""",vertical_pull,bodyweight,intermediate,TRUE
+Smith Machine Bench Press,chest,"""{triceps,front delts}""",press,machine,beginner,TRUE
+Push-up,chest,"""{triceps,front delts}""",press,bodyweight,beginner,TRUE
+Crunch,core,"""{}""",flexion,bodyweight,beginner,FALSE
+Front Squat,quads,"""{glutes,hamstrings,core}""",squat,barbell,intermediate,TRUE
+Plank,core,"""{}""",flexion,bodyweight,beginner,FALSE
+Russian Twist,core,"""{}""",flexion,bodyweight,beginner,FALSE
+Dead Bug,core,"""{}""",flexion,bodyweight,beginner,FALSE
+Seated Calf Raise,calves,"""{}""",raise,machine,beginner,FALSE
+Smith Machine JM Press,triceps,"""{chest,front delts}""",press,machine,intermediate,TRUE
+Dumbbell Skullcrusher,triceps,"""{}""",extension,dumbbell,beginner,FALSE
+Kroc Row,back,"""{biceps,rear delts}""",horizontal_pull,dumbbell,advanced,TRUE
+Pistol Squat,quads,"""{glutes,hamstrings}""",squat,bodyweight,advanced,TRUE
+Sissy Squat,quads,"""{}""",squat,bodyweight,advanced,FALSE
+Leg Press,quads,"""{glutes,hamstrings}""",squat,machine,beginner,TRUE
+Kettlebell Swing,glutes,"""{hamstrings,back}""",hinge,dumbbell,intermediate,TRUE
+Sumo Deadlift,glutes,"""{hamstrings,back,quads}""",hinge,barbell,intermediate,TRUE
+Donkey Kicks,glutes,"""{hamstrings}""",extension,bodyweight,beginner,FALSE
+Fire Hydrants,glutes,"""{}""",raise,bodyweight,beginner,FALSE
+Barbell Row,back,"""{biceps,rear delts}""",horizontal_pull,barbell,intermediate,TRUE
+Back Extension,hamstrings,"""{glutes,back}""",hinge,bodyweight,beginner,FALSE
+Incline Dumbbell Press,chest,"""{triceps,front delts}""",press,dumbbell,intermediate,TRUE
+Decline Bench Press,chest,"""{triceps,front delts}""",press,barbell,intermediate,TRUE
+Decline Dumbbell Press,chest,"""{triceps,front delts}""",press,dumbbell,intermediate,TRUE
+Flat Dumbbell Press,chest,"""{triceps,front delts}""",press,dumbbell,beginner,TRUE
+Cable Crossover,chest,"""{front delts}""",fly,cable,beginner,FALSE
+Single-Leg Calf Raise,calves,"""{}""",raise,bodyweight,beginner,FALSE
+Leg Press Calf Raise,calves,"""{}""",raise,machine,beginner,FALSE
+Dumbbell Overhead Press,shoulders,"""{triceps,traps}""",press,dumbbell,intermediate,TRUE
+Machine Shoulder Press,shoulders,"""{triceps}""",press,machine,beginner,TRUE
+Cable Lateral Raise,shoulders,"""{traps}""",raise,cable,beginner,FALSE
+Rear Delt Fly,rear delts,"""{traps}""",fly,dumbbell,beginner,FALSE
