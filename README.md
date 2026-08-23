@@ -137,19 +137,28 @@ RepStreak/
 └── types/                  TypeScript type files
 ```
 
-## Key features, under the hood
+## Exercise dataset
 
-- **Streak engine** — `lib/services/DashboardService.ts` pulls completed
-  sessions, keys them by local date, and walks consecutive days backward
-  from today (or yesterday) to compute your real streak.
-- **Workout → squad/challenge fan-out** — when a session saves, the app
-  POSTs to `/workouts/complete`, and the backend bumps every squad's
-  `workouts_this_week` and every opted-in challenge's progress using the
-  right metric (visits / volume / reps).
-- **Domain models** — `Squad`, `SquadMember`, `WeeklyChallenge`, and
-  `ChallengeParticipant` are real TS classes. They own formatting
-  (`getFormattedGoal()`, `getTimeRemainingLabel()`, `getLeaderboard()`) so
-  screens stay thin.
+RepStreak’s workout generator uses a curated exercise dataset organized by
+muscle group, movement category, equipment, difficulty, and compound status.
+
+[View the complete exercise dataset](data/exercises.csv).
+
+## Technical highlights
+
+- **Workout generation** — filters the curated
+  [exercise dataset](data/exercises.csv) by selected muscles, equipment,
+  difficulty, and movement pattern to build workouts that fit the user's
+  available time.
+
+- **Streak calculation** — 
+  [`DashboardService.ts`](lib/services/DashboardService.ts) groups completed
+  sessions by local date and walks backward from today or yesterday to calculate
+  consecutive workout days.
+
+- **Squad and challenge updates** — completing a workout triggers the
+  `/workouts/complete` endpoint, which updates every active squad and opted-in
+  challenge using the appropriate metric: visits, training volume, or reps.
 
 ## Authors
 
