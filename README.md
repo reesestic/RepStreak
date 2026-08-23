@@ -37,10 +37,15 @@ Expo / React Native app  ──►  FastAPI backend  ──►  Supabase (Postgr
 - **Supabase** stores everything — users, profiles, exercises, sessions,
   squads, challenges, and participation.
 
-### Who made this?
+## Team and contributions
 
-RepStreak was built by a CS 411 team at Boston University. See
-[`AUTHORS`](#-authors) below.
+RepStreak was developed by a four-person CS 411 team at Boston University.
+The team collaborated across planning, development, testing, and user research.
+
+- **Reese Stichter** — Workout Database Architect, Workout Generator Creator, History Page Creator, Scrum Lead, User Authentication
+- **James Conlon** — Backend Architect, Squad Features Designer, Challenges Creator
+- **Andrew Andea** — Black-box Testing, Documentation
+- **William Spannuth** — Black-box Testing, Documentation, File Cleanup, README Writer
 
 ## Usage
 
@@ -154,9 +159,3 @@ Built by the RepStreak team for CS 411 @ BU, Spring 2026.
 - James Conlon — [conlon@bu.edu](mailto:conlon@bu.edu)
 - William Spannuth — [wcs89@bu.edu](mailto:wcs89@bu.edu)
 - Reese Stichter — [rsticht@bu.edu](mailto:rsticht@bu.edu)
-
-## Further reading
-
-- [Expo docs](https://docs.expo.dev/)
-- [FastAPI docs](https://fastapi.tiangolo.com/)
-- [Supabase docs](https://supabase.com/docs)
